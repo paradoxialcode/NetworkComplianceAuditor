@@ -7,3 +7,5 @@ __pycache__/
 app.db
 reports_out/
 data/blind_test/
+
+pytest_errors.txt
