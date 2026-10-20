@@ -15,6 +15,7 @@ class Status(StrEnum):
     FAIL = "fail"
     NOT_CONFIGURED = "not_configured"
     NOT_APPLICABLE = "not_applicable"
+    UNKNOWN = "unknown"
     ERROR = "error"
 
 

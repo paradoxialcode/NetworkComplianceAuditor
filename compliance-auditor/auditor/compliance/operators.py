@@ -84,6 +84,12 @@ def _regex(a: Any, b: Any) -> bool:
     return _compile(b).search(a[:MAX_MATCH_INPUT]) is not None
 
 
+def _non_empty(a: Any, _b: Any) -> bool:
+    if isinstance(a, (str, list, tuple, set, frozenset, dict)):
+        return len(a) > 0
+    raise TypeError("non_empty requires a string or a collection")
+
+
 def _present(a: Any, _b: Any) -> bool:
     return a is not MISSING and a is not None
 
@@ -103,11 +109,13 @@ OPERATORS: Final[dict[str, Callable[[Any, Any], bool]]] = {
     "not_in": _not_in,
     "contains": _contains,
     "regex": _regex,
+    "non_empty": _non_empty,
     "present": _present,
     "absent": _absent,
 }
 
 EXISTENCE_OPS: Final = frozenset({"present", "absent"})
+NO_VALUE_OPS: Final = frozenset({"present", "absent", "non_empty"})
 _NUMERIC_OPS: Final = frozenset({"gt", "gte", "lt", "lte"})
 _SET_OPS: Final = frozenset({"in", "not_in"})
 
@@ -115,7 +123,7 @@ _SET_OPS: Final = frozenset({"in", "not_in"})
 def validate_operand(op: str, value: Any) -> None:
     if op not in OPERATORS:
         raise ValueError(f"unknown operator: {op!r}")
-    if op in EXISTENCE_OPS:
+    if op in NO_VALUE_OPS:
         if value is not None:
             raise ValueError(f"operator {op!r} takes no value")
         return

@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 _SENSITIVE: Final = re.compile(r"passw|secret|psk|key|communit|token|credential|hash", re.IGNORECASE)
 _MAX_EVIDENCE_LEN: Final = 200
 _MAX_EVIDENCE_ITEMS: Final = 20
+UNKNOWN_STATE: Final = "UNKNOWN"
 _ON_MISSING: Final = {
     "pass": Status.PASS,
     "fail": Status.FAIL,
@@ -29,11 +30,17 @@ def resolve(data: Mapping[str, Any], path: str) -> Any:
             if segment not in current:
                 return MISSING
             current = current[segment]
-        elif isinstance(current, Sequence) and not isinstance(current, (str, bytes)) and segment.isdigit():
-            index = int(segment)
-            if index >= len(current):
-                return MISSING
-            current = current[index]
+        elif isinstance(current, Sequence) and not isinstance(current, (str, bytes)):
+            if segment.isdigit():
+                index = int(segment)
+                if index >= len(current):
+                    return MISSING
+                current = current[index]
+            else:
+                match = next((i for i in current if isinstance(i, Mapping) and i.get("key") == segment), None)
+                if match is None:
+                    return MISSING
+                current = match
         else:
             return MISSING
     return current
@@ -54,7 +61,7 @@ def _evidence_value(path: str, value: Any) -> Any:
 
 
 def _all(statuses: set[Status]) -> Status:
-    for status in (Status.ERROR, Status.FAIL, Status.NOT_CONFIGURED):
+    for status in (Status.FAIL, Status.NOT_CONFIGURED, Status.ERROR, Status.UNKNOWN):
         if status in statuses:
             return status
     return Status.PASS
@@ -65,6 +72,8 @@ def _any(statuses: set[Status]) -> Status:
         return Status.PASS
     if Status.ERROR in statuses:
         return Status.ERROR
+    if Status.UNKNOWN in statuses:
+        return Status.UNKNOWN
     if statuses == {Status.NOT_CONFIGURED}:
         return Status.NOT_CONFIGURED
     return Status.FAIL
@@ -75,6 +84,8 @@ def _eval_leaf(field: str, op: str, cond: Condition, data: Mapping[str, Any]) ->
     evidence = {field: _evidence_value(field, actual)}
     if actual is MISSING and op not in EXISTENCE_OPS:
         return _ON_MISSING[cond.on_missing], evidence
+    if isinstance(actual, str) and actual == UNKNOWN_STATE:
+        return Status.UNKNOWN, evidence
     try:
         matched = OPERATORS[op](actual, cond.value)
     except (TypeError, ValueError, re.error):
@@ -116,7 +127,7 @@ def evaluate_check(check: Check, data: Mapping[str, Any], vendor: str | None = N
 
 def _to_mapping(baseline: Mapping[str, Any] | BaseModel) -> Mapping[str, Any]:
     if isinstance(baseline, BaseModel):
-        return baseline.model_dump(mode="python")
+        return baseline.model_dump(mode="json")
     if isinstance(baseline, Mapping):
         return baseline
     raise TypeError("baseline must be a mapping or a Pydantic model")
@@ -128,6 +139,10 @@ def run_audit(
     vendor: str | None = None,
 ) -> list[CheckResult]:
     data = _to_mapping(baseline)
+    if vendor is None:
+        device = data.get("device")
+        if isinstance(device, Mapping) and isinstance(device.get("vendor"), str):
+            vendor = device["vendor"]
     results: list[CheckResult] = []
     for check in checks:
         try:

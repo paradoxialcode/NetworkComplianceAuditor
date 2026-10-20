@@ -169,3 +169,42 @@ def test_one_broken_check_does_not_abort_audit(monkeypatch):
 def test_invalid_conditions_rejected(bad):
     with pytest.raises(ValueError):
         chk(bad)
+
+
+def test_unknown_state_is_its_own_status():
+    data = {"management": {"telnet": "UNKNOWN"}}
+    cond = {"field": "management.telnet", "op": "eq", "value": "DISABLED", "on_missing": "pass"}
+    assert evaluate_check(chk(cond), data).status is Status.UNKNOWN
+
+
+def test_composite_precedence_with_unknown_and_error():
+    ok = {"field": "mgmt.ssh.version", "op": "eq", "value": 2}
+    bad = {"field": "mgmt.ssh.version", "op": "eq", "value": 1}
+    unk = {"field": "state.x", "op": "eq", "value": "A"}
+    err = {"field": "snmp.community", "op": "gte", "value": 1}
+    data = {**BASELINE, "state": {"x": "UNKNOWN"}}
+
+    def run(cond):
+        return evaluate_check(chk(cond), data).status
+
+    assert run({"all_of": [bad, unk]}) is Status.FAIL
+    assert run({"all_of": [bad, err]}) is Status.FAIL
+    assert run({"all_of": [ok, unk]}) is Status.UNKNOWN
+    assert run({"any_of": [ok, unk]}) is Status.PASS
+    assert run({"any_of": [bad, unk]}) is Status.UNKNOWN
+    assert run({"any_of": [unk, err]}) is Status.ERROR
+
+
+def test_keyed_list_lookup():
+    data = {"facts": [{"key": "ssh_version", "value": 2}, {"key": "other", "value": "x"}]}
+    assert resolve(data, "facts.ssh_version.value") == 2
+    assert resolve(data, "facts.1.key") == "other"
+    assert resolve(data, "facts.absent.value").name == "MISSING"
+
+
+def test_non_empty_operator():
+    data = {"logging": {"hosts": ["a"], "none": [], "name": ""}}
+    assert evaluate_check(chk({"field": "logging.hosts", "op": "non_empty"}), data).status is Status.PASS
+    assert evaluate_check(chk({"field": "logging.none", "op": "non_empty"}), data).status is Status.FAIL
+    assert evaluate_check(chk({"field": "logging.name", "op": "non_empty"}), data).status is Status.FAIL
+    assert evaluate_check(chk({"field": "logging.nothing", "op": "non_empty"}), data).status is Status.FAIL
