@@ -15,6 +15,7 @@ from auditor.db.session import connect, migrate, session
 from auditor.schema.baseline import SecurityBaseline
 
 MAX_LIST_LIMIT: Final = 500
+MAX_REPORT_BYTES: Final = 20 * 1024 * 1024
 _MAX_FILENAME_LEN: Final = 255
 
 MIGRATIONS: Final[tuple[str, ...]] = (
@@ -55,6 +56,13 @@ CREATE TABLE findings (
     UNIQUE (audit_id, check_id)
 );
 CREATE INDEX idx_findings_audit ON findings(audit_id, status);
+""",
+    """
+CREATE TABLE reports (
+    audit_id INTEGER PRIMARY KEY REFERENCES audits(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL,
+    pdf BLOB NOT NULL CHECK (length(pdf) > 0)
+);
 """,
 )
 
@@ -290,3 +298,27 @@ def list_audits(conn: sqlite3.Connection, limit: int = 50) -> list[AuditListItem
 def delete_audit(conn: sqlite3.Connection, audit_id: int) -> bool:
     audit_id = _require_id(audit_id)
     return conn.execute("DELETE FROM audits WHERE id = ?", (audit_id,)).rowcount > 0
+
+
+def save_report(conn: sqlite3.Connection, audit_id: int, pdf: bytes) -> None:
+    audit_id = _require_id(audit_id)
+    if not isinstance(pdf, (bytes, bytearray)) or not pdf:
+        raise StoreError("report must be non-empty bytes")
+    if len(pdf) > MAX_REPORT_BYTES:
+        raise StoreError("report is too large to store")
+    conn.execute(
+        "INSERT INTO reports (audit_id, created_at, pdf) VALUES (?, ?, ?) "
+        "ON CONFLICT (audit_id) DO UPDATE SET created_at = excluded.created_at, pdf = excluded.pdf",
+        (audit_id, _now(), bytes(pdf)),
+    )
+
+
+def persist_report(database: Path | str, audit_id: int, pdf: bytes) -> None:
+    with session(database) as conn:
+        save_report(conn, audit_id, pdf)
+
+
+def load_report(conn: sqlite3.Connection, audit_id: int) -> bytes | None:
+    audit_id = _require_id(audit_id)
+    row = conn.execute("SELECT pdf FROM reports WHERE audit_id = ?", (audit_id,)).fetchone()
+    return None if row is None else bytes(tuple(row)[0])

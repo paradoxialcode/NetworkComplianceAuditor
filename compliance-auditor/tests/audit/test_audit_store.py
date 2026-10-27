@@ -259,3 +259,62 @@ def test_statuses_and_severities_survive_round_trip(db):
     assert by_id["CHK-NTP"].status is Status.FAIL
     assert by_id["CHK-SNMP-COMMUNITY"].severity is Severity.CRITICAL
     assert by_id["CHK-TELNET-OFF"].mappings == {"nist": ("AC-17",)}
+
+
+def test_report_round_trip_and_replace(db):
+    from auditor.audit.store import load_report, save_report
+
+    audit_id = persist_audit(db, *audit_inputs())
+    with session(db) as conn:
+        assert load_report(conn, audit_id) is None
+        save_report(conn, audit_id, b"%PDF-first")
+        save_report(conn, audit_id, b"%PDF-second")
+        assert load_report(conn, audit_id) == b"%PDF-second"
+
+
+@pytest.mark.parametrize("bad", [b"", None, "text", 5])
+def test_report_must_be_non_empty_bytes(db, bad):
+    from auditor.audit.store import save_report
+
+    audit_id = persist_audit(db, *audit_inputs())
+    with session(db) as conn, pytest.raises(StoreError):
+        save_report(conn, audit_id, bad)
+
+
+def test_oversized_report_rejected(db, monkeypatch):
+    import auditor.audit.store as store_module
+
+    monkeypatch.setattr(store_module, "MAX_REPORT_BYTES", 10)
+    audit_id = persist_audit(db, *audit_inputs())
+    with session(db) as conn, pytest.raises(StoreError, match="too large"):
+        store_module.save_report(conn, audit_id, b"x" * 11)
+
+
+def test_deleting_an_audit_removes_its_report(db):
+    from auditor.audit.store import save_report
+
+    audit_id = persist_audit(db, *audit_inputs())
+    with session(db) as conn:
+        save_report(conn, audit_id, b"%PDF-x")
+        delete_audit(conn, audit_id)
+        assert conn.execute("SELECT COUNT(*) FROM reports").fetchone()[0] == 0
+
+
+def test_existing_v1_database_upgrades_without_data_loss(tmp_path):
+    from auditor.db.session import migrate
+
+    path = tmp_path / "old.db"
+    conn = connect(path)
+    try:
+        migrate(conn, MIGRATIONS[:1])
+    finally:
+        conn.close()
+    audit_id = persist_audit(path, *audit_inputs())
+    init_db(path)
+    conn = connect(path)
+    try:
+        assert schema_version(conn) == len(MIGRATIONS)
+    finally:
+        conn.close()
+    with session(path) as conn:
+        assert load_audit(conn, audit_id) is not None
