@@ -1,0 +1,78 @@
+# Category: network_filtering  (ACLs, spoofing, risky IP features)
+- id: NET-001
+  title: IP source routing is disabled
+  category: network_filtering
+  severity: medium
+  description: Source-routed packets let attackers choose a path and bypass controls.
+  applies_to: [cisco, fortinet, junos]
+  field: filtering.ip_source_route_enabled
+  operator: equals
+  expected: false
+  on_missing: pass
+  nist: [CM-7, SC-7]
+  remediation_key: disable_source_routing
+
+- id: NET-002
+  title: IP directed broadcast is disabled
+  category: network_filtering
+  severity: medium
+  description: Directed broadcasts can be abused for amplification (smurf) attacks.
+  applies_to: [cisco, fortinet, junos]
+  field: filtering.directed_broadcast_enabled
+  operator: equals
+  expected: false
+  on_missing: pass
+  nist: [SC-5, SC-7]
+  remediation_key: disable_directed_broadcast
+
+- id: NET-003
+  title: ICMP redirects are disabled
+  category: network_filtering
+  severity: low
+  description: Redirects can be used to alter routing behaviour.
+  applies_to: [cisco, fortinet, junos]
+  field: filtering.icmp_redirects_enabled
+  operator: equals
+  expected: false
+  on_missing: pass
+  nist: [SC-7, CM-7]
+  remediation_key: disable_icmp_redirects
+
+- id: NET-004
+  title: Management access is restricted by ACL / trusted hosts
+  category: network_filtering
+  severity: high
+  description: Only approved management hosts may reach SSH/HTTPS/SNMP.
+  applies_to: [cisco, fortinet, junos]
+  field: filtering.mgmt_access_restricted
+  operator: equals
+  expected: true
+  on_missing: fail
+  nist: [AC-3, AC-17, SC-7]
+  remediation_key: restrict_mgmt_access
+
+- id: NET-005
+  title: No "permit any any" rules
+  category: network_filtering
+  severity: high
+  description: Count of rules allowing all traffic from anywhere to anywhere must be zero.
+  applies_to: [cisco, fortinet, junos]
+  field: filtering.permit_any_any_count
+  operator: equals
+  expected: 0
+  on_missing: fail
+  nist: [SC-7, AC-4]
+  remediation_key: remove_permit_any_any
+
+- id: NET-006
+  title: Anti-spoofing (uRPF / reverse-path check) is enabled
+  category: network_filtering
+  severity: medium
+  description: Drops packets whose source address could not arrive on that interface.
+  applies_to: [cisco, fortinet, junos]
+  field: filtering.antispoofing_enabled
+  operator: equals
+  expected: true
+  on_missing: fail
+  nist: [SC-7]
+  remediation_key: enable_antispoofing
