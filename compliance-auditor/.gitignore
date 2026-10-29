@@ -9,3 +9,10 @@ reports_out/
 data/blind_test/
 
 pytest_errors.txt
+
+instance/
+*.db
+sample_data/
+
+.coverage
+htmlcov/
