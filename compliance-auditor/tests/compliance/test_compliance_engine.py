@@ -208,3 +208,27 @@ def test_non_empty_operator():
     assert evaluate_check(chk({"field": "logging.none", "op": "non_empty"}), data).status is Status.FAIL
     assert evaluate_check(chk({"field": "logging.name", "op": "non_empty"}), data).status is Status.FAIL
     assert evaluate_check(chk({"field": "logging.nothing", "op": "non_empty"}), data).status is Status.FAIL
+
+
+def test_catastrophic_regex_in_a_rule_is_rejected_at_load():
+    with pytest.raises(ValueError, match="too slow"):
+        chk({"field": "banner.text", "op": "regex", "value": "(a|aa)+$"})
+
+
+def test_slow_regex_gives_a_controlled_error_not_a_hang(monkeypatch):
+    import time
+
+    from auditor import regex_safety
+
+    monkeypatch.setattr(regex_safety, "_PROBES", ())
+    regex_safety.compile_pattern.cache_clear()
+    try:
+        check = chk({"field": "banner.text", "op": "regex", "value": "(a|aa)+$"})
+        data = {"banner": {"text": "a" * 60 + "!"}}
+        start = time.time()
+        result = evaluate_check(check, data)
+        elapsed = time.time() - start
+    finally:
+        regex_safety.compile_pattern.cache_clear()
+    assert result.status is Status.ERROR
+    assert elapsed < 1.0

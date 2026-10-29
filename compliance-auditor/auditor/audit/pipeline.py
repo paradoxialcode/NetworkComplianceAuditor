@@ -11,12 +11,13 @@ from auditor.schema.baseline import SecurityBaseline
 
 from .adapter import to_schema_baseline
 from .service import AuditOutcome, RuleSet, run_device_audit
-from .upload import MAX_UPLOAD_BYTES, UploadedConfig, UploadError, detect_vendor, read_config_upload
+from .upload import MAX_UPLOAD_BYTES, UploadedConfig, UploadError, read_config_upload
 
 logger = logging.getLogger(__name__)
 
 Tokenizer = Callable[[str, str | None], Sequence[Any]]
 Normalizer = Callable[[Sequence[Any], parsed.Vendor], parsed.SecurityBaseline]
+Detector = Callable[[str], parsed.Vendor | None]
 
 _NO_PARSER_MESSAGE = (
     "No built-in parser matches this file. Choose a supported vendor, or use the Training page "
@@ -36,6 +37,7 @@ class UnsupportedVendorError(ConfigInputError):
 class Backends:
     tokenizers: Mapping[parsed.Vendor, Tokenizer]
     normalize: Normalizer
+    detect: Detector | None = None
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,12 @@ class UploadAudit:
     parse: ParseResult
 
 
+def default_detector(text: str) -> parsed.Vendor | None:
+    from auditor.ingestion.detector import detect_vendor
+
+    return detect_vendor(text).vendor
+
+
 def default_backends() -> Backends:
     from auditor.parsers.normalizer import normalize
     from auditor.parsers.tokenizers.fortinet import tokenize_fortinet
@@ -63,6 +71,7 @@ def default_backends() -> Backends:
             parsed.Vendor.FORTIOS: lambda text, name: tokenize_fortinet(text, source_file=name),
         },
         normalize=normalize,
+        detect=default_detector,
     )
 
 
@@ -79,11 +88,11 @@ def parse_config_upload(
     except UploadError as exc:
         raise ConfigInputError(str(exc)) from exc
 
-    chosen = vendor or detect_vendor(upload.text)
+    active = backends or default_backends()
+    chosen = vendor or (active.detect or default_detector)(upload.text)
     if chosen is None:
         raise UnsupportedVendorError(_NO_PARSER_MESSAGE)
 
-    active = backends or default_backends()
     tokenizer = active.tokenizers.get(chosen)
     if tokenizer is None:
         raise UnsupportedVendorError(_NO_PARSER_MESSAGE)

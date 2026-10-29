@@ -75,3 +75,16 @@ def test_oversized_file_rejected(tmp_path):
     write(tmp_path, "big.yaml", "checks: []\n" + "#" * MAX_FILE_BYTES)
     with pytest.raises(CheckLoadError, match="exceeds"):
         load_checks(tmp_path)
+
+
+def test_catastrophic_regex_in_check_file_is_rejected(tmp_path):
+    text = """
+checks:
+  - id: CHK-EVIL-01
+    title: Pattern that could freeze the auditor
+    severity: low
+    condition: {field: banner.text, op: regex, value: "(a|aa)+$"}
+"""
+    write(tmp_path, "evil.yaml", text)
+    with pytest.raises(CheckLoadError, match="too slow"):
+        load_checks(tmp_path)

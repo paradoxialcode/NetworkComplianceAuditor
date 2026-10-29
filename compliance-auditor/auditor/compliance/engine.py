@@ -88,7 +88,7 @@ def _eval_leaf(field: str, op: str, cond: Condition, data: Mapping[str, Any]) ->
         return Status.UNKNOWN, evidence
     try:
         matched = OPERATORS[op](actual, cond.value)
-    except (TypeError, ValueError, re.error):
+    except (TypeError, ValueError, re.error, TimeoutError):
         return Status.ERROR, evidence
     return (Status.PASS if matched else Status.FAIL), evidence
 

@@ -1,9 +1,9 @@
-import re
 from collections.abc import Callable
 from enum import Enum
-from functools import lru_cache
 from numbers import Real
 from typing import Any, Final
+
+from auditor import regex_safety
 
 MAX_REGEX_LEN: Final = 256
 MAX_MATCH_INPUT: Final = 4096
@@ -73,15 +73,10 @@ def _contains(a: Any, b: Any) -> bool:
     raise TypeError("contains requires a string or a collection")
 
 
-@lru_cache(maxsize=512)
-def _compile(pattern: str) -> re.Pattern[str]:
-    return re.compile(pattern)
-
-
 def _regex(a: Any, b: Any) -> bool:
     if not isinstance(a, str):
         raise TypeError("regex requires a string")
-    return _compile(b).search(a[:MAX_MATCH_INPUT]) is not None
+    return regex_safety.search(b, a[:MAX_MATCH_INPUT])
 
 
 def _non_empty(a: Any, _b: Any) -> bool:
@@ -136,7 +131,4 @@ def validate_operand(op: str, value: Any) -> None:
     if op == "regex":
         if not isinstance(value, str) or len(value) > MAX_REGEX_LEN:
             raise ValueError(f"regex must be a string of at most {MAX_REGEX_LEN} chars")
-        try:
-            re.compile(value)
-        except re.error as exc:
-            raise ValueError(f"invalid regex: {exc}") from exc
+        regex_safety.compile_pattern(value)

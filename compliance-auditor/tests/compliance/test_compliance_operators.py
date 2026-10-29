@@ -62,6 +62,7 @@ def test_operator_type_errors(op, actual, expected):
         ("in", []),
         ("regex", "(unclosed"),
         ("regex", "a" * 300),
+        ("regex", "(a|aa)+$"),
         ("regex", 5),
     ],
 )

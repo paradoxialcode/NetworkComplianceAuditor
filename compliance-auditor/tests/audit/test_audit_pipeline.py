@@ -34,6 +34,14 @@ def ev(raw, line=1):
     return parsed.Evidence("cfg.txt", line, line, raw)
 
 
+def detect(text):
+    if "config system" in text:
+        return parsed.Vendor.FORTIOS
+    if "hostname" in text or "version" in text:
+        return parsed.Vendor.CISCO_IOS
+    return None
+
+
 class Recorder:
     def __init__(self, telnet=False):
         self.tokenizer_calls = []
@@ -57,6 +65,7 @@ class Recorder:
         return Backends(
             tokenizers={parsed.Vendor.CISCO_IOS: self.tokenizer, parsed.Vendor.FORTIOS: self.tokenizer},
             normalize=self.normalize,
+            detect=detect,
         )
 
 
@@ -94,7 +103,9 @@ def test_unknown_vendor_points_to_training():
 
 
 def test_vendor_without_backend_is_unsupported():
-    backends = Backends(tokenizers={parsed.Vendor.CISCO_IOS: Recorder().tokenizer}, normalize=Recorder().normalize)
+    backends = Backends(
+        tokenizers={parsed.Vendor.CISCO_IOS: Recorder().tokenizer}, normalize=Recorder().normalize, detect=detect
+    )
     with pytest.raises(UnsupportedVendorError):
         parse_config_upload(FORTI_TEXT.encode(), "fw.conf", backends=backends)
 
@@ -191,3 +202,13 @@ def test_unsafe_upload_name_never_reaches_the_database(tmp_path):
     )
     with session(db) as conn:
         assert load_audit(conn, result.outcome.audit_id).device.source_filename == "evil.cfg"
+
+
+def test_explicit_vendor_never_calls_the_detector():
+    def forbidden(text):
+        raise AssertionError("detector must not run when a vendor is chosen")
+
+    rec = Recorder()
+    backends = Backends(tokenizers=rec.backends().tokenizers, normalize=rec.normalize, detect=forbidden)
+    result = parse_config_upload(JUNOS_TEXT.encode(), "x.set", vendor=parsed.Vendor.CISCO_IOS, backends=backends)
+    assert result.vendor is parsed.Vendor.CISCO_IOS

@@ -249,7 +249,12 @@ def make_batch(database):
             warnings=(parsed.NormalizationWarning("odd block", 4),),
         )
 
-    backends = Backends(tokenizers={parsed.Vendor.CISCO_IOS: lambda text, name: ["t"]}, normalize=normalize)
+    def detect(text):
+        return parsed.Vendor.CISCO_IOS if "hostname" in text or "version" in text else None
+
+    backends = Backends(
+        tokenizers={parsed.Vendor.CISCO_IOS: lambda text, name: ["t"]}, normalize=normalize, detect=detect
+    )
     rules = load_rule_set(Path(database).parent.parent / "data")
     cisco = b"version 17.9\nhostname r1\nservice password-encryption\nline vty 0 4\nend\n"
     junos = b"set system host-name j1\nset system services ssh\n"

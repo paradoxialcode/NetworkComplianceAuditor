@@ -8,10 +8,8 @@ from auditor.audit.upload import (
     MAX_LINE_LENGTH,
     MAX_LINES,
     UploadError,
-    detect_vendor,
     read_config_upload,
 )
-from auditor.parsers.normalizer import Vendor
 
 CISCO = """!
 version 17.9
@@ -27,22 +25,6 @@ ip route 0.0.0.0 0.0.0.0 10.0.0.254
 line vty 0 4
  transport input ssh
 end
-"""
-FORTI = """#config-version=FGT60F-7.2.5-FW-build1517
-config system global
-    set hostname "fw-1"
-    set admin-telnet disable
-end
-config system interface
-    edit "wan1"
-        set allowaccess ping https ssh
-    next
-end
-"""
-JUNOS = """set system host-name junos-1
-set system services ssh
-set system ntp server 10.0.0.1
-set system syslog host 10.0.0.9 any any
 """
 
 
@@ -147,36 +129,3 @@ def test_overlong_line_rejected_with_line_number():
 )
 def test_filename_sanitized(name, expected):
     assert read_config_upload(b"hostname a\n", name).filename == expected
-
-
-def test_detect_cisco():
-    assert detect_vendor(CISCO) is Vendor.CISCO_IOS
-
-
-def test_detect_fortinet():
-    assert detect_vendor(FORTI) is Vendor.FORTIOS
-
-
-def test_unknown_vendor_returns_none():
-    assert detect_vendor(JUNOS) is None
-    assert detect_vendor("") is None
-    assert detect_vendor("just some text\nwith lines\n") is None
-
-
-def test_single_weak_signal_is_not_enough():
-    assert detect_vendor("hostname only-one-signal\n") is None
-
-
-def test_ambiguous_mix_returns_none():
-    mixed = "hostname a\nversion 15.2\n#config-version=FGT\nconfig system global\n"
-    assert detect_vendor(mixed) is None
-
-
-def test_detection_handles_crlf_via_upload():
-    up = read_config_upload(CISCO.replace("\n", "\r\n").encode(), "r.cfg")
-    assert detect_vendor(up.text) is Vendor.CISCO_IOS
-
-
-def test_detect_requires_text():
-    with pytest.raises(TypeError):
-        detect_vendor(b"hostname a")

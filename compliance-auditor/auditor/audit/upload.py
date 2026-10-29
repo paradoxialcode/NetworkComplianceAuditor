@@ -7,45 +7,14 @@ from dataclasses import dataclass
 from pathlib import PurePath
 from typing import Final
 
-from auditor.parsers.normalizer import Vendor
-
 MAX_UPLOAD_BYTES: Final = 5 * 1024 * 1024
 MAX_LINES: Final = 100_000
 MAX_LINE_LENGTH: Final = 10_000
 DEFAULT_FILENAME: Final = "uploaded-config.txt"
 _MAX_FILENAME_LEN: Final = 100
-_DETECT_LINE_LIMIT: Final = 20_000
-_MIN_DETECT_SCORE: Final = 2
 _CONTROL: Final = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 _ANY_CONTROL: Final = re.compile(r"[\x00-\x1f\x7f]")
 _FILENAME_UNSAFE: Final = re.compile(r"[^A-Za-z0-9._ -]+")
-
-_CISCO_SIGNALS: Final = tuple(
-    re.compile(p, re.IGNORECASE)
-    for p in (
-        r"^version \d",
-        r"^hostname \S",
-        r"^interface (Gigabit|Fast|Ten|Forty|Hundred)?Ethernet\S*",
-        r"^interface (Vlan|Loopback|Port-channel)\S*",
-        r"^line (vty|con|aux) ",
-        r"^service (timestamps|password-encryption)",
-        r"^enable (secret|password) ",
-        r"^ip (route|domain[- ]name|ssh) ",
-        r"^spanning-tree ",
-    )
-)
-_FORTI_SIGNALS: Final = tuple(
-    re.compile(p, re.IGNORECASE)
-    for p in (
-        r"^#config-version=",
-        r"^config system (global|interface|dns|ntp|admin|settings)\b",
-        r"^config firewall (policy|address|service)\b",
-        r"^config (router|vpn|user|log|wireless-controller) ",
-        r"^\s+edit \S",
-        r"^\s+set (hostname|admin-\S+|allowaccess) ",
-    )
-)
-
 
 class UploadError(ValueError):
     pass
@@ -114,20 +83,3 @@ def read_config_upload(
         size=len(raw),
         lossy=lossy,
     )
-
-
-def detect_vendor(text: str) -> Vendor | None:
-    if not isinstance(text, str):
-        raise TypeError("text must be a str")
-    cisco = forti = 0
-    for line in text.split("\n", _DETECT_LINE_LIMIT)[:_DETECT_LINE_LIMIT]:
-        stripped = line.rstrip()
-        if not stripped:
-            continue
-        cisco += any(p.match(stripped) for p in _CISCO_SIGNALS)
-        forti += any(p.match(stripped) for p in _FORTI_SIGNALS)
-    if forti >= _MIN_DETECT_SCORE and forti > cisco:
-        return Vendor.FORTIOS
-    if cisco >= _MIN_DETECT_SCORE and cisco > forti:
-        return Vendor.CISCO_IOS
-    return None

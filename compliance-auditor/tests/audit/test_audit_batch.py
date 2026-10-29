@@ -30,6 +30,14 @@ def make_rules():
     return RuleSet(checks=(check,), catalogs={"nist": catalog}, templates={}, warnings=())
 
 
+def detect(text):
+    if "config system" in text:
+        return parsed.Vendor.FORTIOS
+    if "hostname" in text or "version" in text:
+        return parsed.Vendor.CISCO_IOS
+    return None
+
+
 def backends(telnet=False, fail_on=None):
     def tokenizer(text, name):
         if fail_on and fail_on in text:
@@ -44,7 +52,7 @@ def backends(telnet=False, fail_on=None):
             telnet_enabled=parsed.Fact(telnet, evidence),
         )
 
-    return Backends(tokenizers={parsed.Vendor.CISCO_IOS: tokenizer}, normalize=normalize)
+    return Backends(tokenizers={parsed.Vendor.CISCO_IOS: tokenizer}, normalize=normalize, detect=detect)
 
 
 @pytest.fixture
