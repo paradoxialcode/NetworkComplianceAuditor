@@ -222,7 +222,7 @@ def test_upload_page_renders_with_disabled_run_button(env):
     assert not at.exception
     run = [b for b in at.button if b.label == "Run audit"][0]
     assert run.disabled is True
-    assert at.selectbox[0].options == ["Auto-detect", "Cisco IOS", "FortiOS"]
+    assert at.selectbox[0].options == ["Auto-detect", "Cisco IOS", "FortiOS", "Other vendor (generic parser)"]
     assert at.multiselect[0].value == ["nist"]
 
 
@@ -269,11 +269,14 @@ def test_upload_page_renders_batch_results(env):
     at.run()
     assert not at.exception
     assert len(at.expander) == 3
-    assert len(at.get("download_button")) == 1
-    metrics = {m.label: m.value for m in at.metric}
-    assert metrics["Checks"] == "2"
-    assert metrics["Non-compliant"] == "2"
+    assert len(at.get("download_button")) == 2
+    metrics = [{m.label: m.value for m in at.metric[i : i + 4]} for i in range(0, len(at.metric), 4)]
+    assert len(metrics) == 2
+    assert metrics[0]["Checks"] == "2"
+    assert metrics[0]["Non-compliant"] == "2"
+    assert metrics[1]["Checks"] == "2"
     assert any("Training page" in i.value for i in at.info)
+    assert any("generic" in c.value for c in at.caption)
     assert any("empty" in e.value for e in at.error)
     assert any("1 configuration block(s) were not recognized" in w.value for w in at.warning)
     assert any(MARKDOWN_HOSTNAME in t.value for t in at.text)

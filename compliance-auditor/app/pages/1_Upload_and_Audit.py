@@ -1,6 +1,7 @@
 import streamlit as st
 
 from auditor.audit.batch import MAX_FILES_PER_BATCH, audit_batch
+from auditor.audit.pipeline import GENERIC_PARSER
 from auditor.compliance.models import NONCOMPLIANT, Status
 from auditor.parsers.normalizer import Vendor
 from auditor.ui import common
@@ -12,7 +13,12 @@ rules = common.require_rules()
 settings = common.get_settings()
 database = common.get_database()
 
-VENDOR_CHOICES = {"Auto-detect": None, "Cisco IOS": Vendor.CISCO_IOS, "FortiOS": Vendor.FORTIOS}
+VENDOR_CHOICES = {
+    "Auto-detect": None,
+    "Cisco IOS": Vendor.CISCO_IOS,
+    "FortiOS": Vendor.FORTIOS,
+    "Other vendor (generic parser)": GENERIC_PARSER,
+}
 
 frameworks = st.multiselect(
     "Frameworks to assess",
@@ -57,10 +63,18 @@ if items:
                 continue
             outcome, parse = item.audit.outcome, item.audit.parse
             st.text(f"Device: {outcome.baseline.device.hostname}")
-            st.caption(
-                f"Vendor: {parse.vendor.value} ({'auto-detected' if parse.vendor_detected else 'selected'})"
-                f" - audit #{outcome.audit_id}"
-            )
+            if parse.parser == GENERIC_PARSER:
+                mapped, total = parse.completeness or (0, 0)
+                st.caption(f"Parser: generic (inferred) - audit #{outcome.audit_id}")
+                st.info(
+                    f"No built-in parser matched this file, so {mapped} of {total} basic details were inferred "
+                    "with confidence scores. Use the Training page to teach the system this vendor for a fuller assessment."
+                )
+            else:
+                st.caption(
+                    f"Vendor: {parse.vendor.value} ({'auto-detected' if parse.vendor_detected else 'selected'})"
+                    f" - audit #{outcome.audit_id}"
+                )
             if parse.upload.lossy:
                 st.warning("The file was not valid UTF-8, so some characters were replaced during reading.")
             counts = outcome.summary.by_status

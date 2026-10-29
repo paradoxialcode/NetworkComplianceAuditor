@@ -73,11 +73,35 @@ def test_successful_file_is_audited_saved_and_reported(db):
         assert load_report(conn, item.audit.outcome.audit_id) == item.pdf
 
 
-def test_unknown_vendor_asks_for_training(db):
+def test_unknown_vendor_is_audited_with_the_generic_parser(db):
     (item,) = audit_batch([("junos.set", JUNOS_TEXT.encode())], make_rules(), database=db, backends=backends())
+    assert item.error is None
+    assert item.needs_training is False
+    assert item.audit.parse.parser == "generic"
+    assert item.audit.parse.vendor is None
+    assert item.audit.outcome.baseline.device.hostname == "junos-1"
+    assert item.pdf.startswith(b"%PDF-")
+
+
+def test_chosen_vendor_without_a_parser_asks_for_training(db):
+    only_cisco = backends()
+    (item,) = audit_batch(
+        [("fw.conf", b"config system global\nend\n")],
+        make_rules(),
+        database=db,
+        vendor=parsed.Vendor.FORTIOS,
+        backends=only_cisco,
+    )
     assert item.needs_training is True
     assert item.audit is None
     assert "Training" in item.error
+
+
+def test_generic_parser_can_be_chosen_explicitly(db):
+    (item,) = audit_batch(
+        [("x.cfg", CISCO_TEXT.encode())], make_rules(), database=db, vendor="generic", backends=backends()
+    )
+    assert item.audit.parse.parser == "generic"
 
 
 def test_one_bad_file_does_not_stop_the_others(db):

@@ -97,9 +97,37 @@ def test_explicit_vendor_overrides_detection():
     assert result.vendor_detected is False
 
 
-def test_unknown_vendor_points_to_training():
-    with pytest.raises(UnsupportedVendorError, match="Training"):
-        parse_config_upload(JUNOS_TEXT.encode(), "junos.set", backends=Recorder().backends())
+def test_unknown_vendor_falls_back_to_the_generic_parser():
+    result = parse_config_upload(JUNOS_TEXT.encode(), "junos.set", backends=Recorder().backends())
+    assert result.parser == "generic"
+    assert result.vendor is None
+    assert result.vendor_detected is False
+    assert result.baseline.device.hostname == "junos-1"
+    assert result.baseline.device.filename == "junos.set"
+    assert result.baseline.device.sha256 == result.upload.sha256
+    mapped, total = result.completeness
+    assert (mapped, total) == (5, 10)
+
+
+def test_generic_parser_can_be_forced_and_skips_detection_and_parsers():
+    def forbidden(*args, **kwargs):
+        raise AssertionError("built-in backends must not run")
+
+    backends = Backends(tokenizers={}, normalize=forbidden, detect=forbidden)
+    result = parse_config_upload(CISCO_TEXT.encode(), "r.cfg", vendor="generic", backends=backends)
+    assert result.parser == "generic"
+    assert result.baseline.device.hostname == "edge-rtr-1"
+
+
+def test_builtin_results_are_labelled():
+    result = parse_config_upload(CISCO_TEXT.encode(), "r.cfg", backends=Recorder().backends())
+    assert result.parser == "builtin"
+    assert result.completeness is None
+
+
+def test_unknown_vendor_selection_value_is_rejected():
+    with pytest.raises(ConfigInputError, match="Unknown vendor"):
+        parse_config_upload(CISCO_TEXT.encode(), "r.cfg", vendor="mystery", backends=Recorder().backends())
 
 
 def test_vendor_without_backend_is_unsupported():

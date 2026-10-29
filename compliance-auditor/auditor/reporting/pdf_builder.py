@@ -221,6 +221,20 @@ def _summary_section(outcome: AuditOutcome, styles: Styles) -> Story:
                 styles["body"],
             )
         )
+    inferred = sum(
+        1
+        for fact in outcome.baseline.facts
+        if fact.evidence is not None and (fact.evidence.mapping_id or "").startswith("generic:")
+    )
+    if inferred:
+        story.append(
+            _para(
+                f"Note: {inferred} value(s) were inferred by the generic parser (no vendor-specific parser was used), "
+                "each with a confidence score below certainty. Verify them before relying on pass results that depend "
+                "on them; the evidence column shows the values used.",
+                styles["body"],
+            )
+        )
     story.append(
         _para(
             "Scope: these results come from technical checks of the submitted configuration file only. For NIST, "

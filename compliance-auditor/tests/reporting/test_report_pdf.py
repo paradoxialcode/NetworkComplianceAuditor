@@ -248,3 +248,24 @@ def test_write_report_without_audit_id_uses_hash_name(tmp_path):
     target = write_report(outcome_for(), tmp_path, FIXED_TIME)
     assert target.name.startswith("report-")
     assert target.suffix == ".pdf"
+
+
+def test_inferred_values_are_disclosed():
+    from auditor.schema.baseline import Evidence
+
+    facts = [
+        SecurityFact(
+            key="telnet_enabled",
+            value=False,
+            state=SecurityState.DISABLED,
+            evidence=Evidence(text="not listed", line=2, mapping_id="generic:junos-services-absence", confidence=0.75),
+        )
+    ]
+    text, _ = text_of(build_report_bytes(outcome_for(make_baseline(facts=facts)), FIXED_TIME))
+    flat = text.replace("\n", " ")
+    assert "1 value(s) were inferred by the generic parser" in flat
+
+
+def test_no_inference_note_for_builtin_results(report):
+    _pdf, text, _reader = report
+    assert "inferred by the generic parser" not in text.replace("\n", " ")

@@ -4,12 +4,13 @@ import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Final
 
 from auditor.parsers import normalizer as parsed
 from auditor.schema.baseline import SecurityBaseline
 
 from .adapter import to_schema_baseline
+from .generic import build_generic_baseline
 from .service import AuditOutcome, RuleSet, run_device_audit
 from .upload import MAX_UPLOAD_BYTES, UploadedConfig, UploadError, read_config_upload
 
@@ -19,9 +20,11 @@ Tokenizer = Callable[[str, str | None], Sequence[Any]]
 Normalizer = Callable[[Sequence[Any], parsed.Vendor], parsed.SecurityBaseline]
 Detector = Callable[[str], parsed.Vendor | None]
 
+GENERIC_PARSER: Final = "generic"
+
 _NO_PARSER_MESSAGE = (
-    "No built-in parser matches this file. Choose a supported vendor, or use the Training page "
-    "to teach the system this vendor's format."
+    "No built-in parser is available for the selected vendor. Choose another vendor, use the generic parser, "
+    "or use the Training page to teach the system this vendor's format."
 )
 
 
@@ -43,9 +46,11 @@ class Backends:
 @dataclass(frozen=True)
 class ParseResult:
     baseline: SecurityBaseline
-    vendor: parsed.Vendor
+    vendor: parsed.Vendor | None
     upload: UploadedConfig
     vendor_detected: bool
+    parser: str = "builtin"
+    completeness: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -75,11 +80,23 @@ def default_backends() -> Backends:
     )
 
 
+def _parse_generic(upload: UploadedConfig) -> ParseResult:
+    result = build_generic_baseline(upload.text, filename=upload.filename, sha256=upload.sha256)
+    return ParseResult(
+        baseline=result.baseline,
+        vendor=None,
+        upload=upload,
+        vendor_detected=False,
+        parser=GENERIC_PARSER,
+        completeness=(len(result.mapped), result.total_basics),
+    )
+
+
 def parse_config_upload(
     data: bytes,
     filename: str | None = None,
     *,
-    vendor: parsed.Vendor | None = None,
+    vendor: parsed.Vendor | str | None = None,
     backends: Backends | None = None,
     max_bytes: int = MAX_UPLOAD_BYTES,
 ) -> ParseResult:
@@ -88,10 +105,15 @@ def parse_config_upload(
     except UploadError as exc:
         raise ConfigInputError(str(exc)) from exc
 
+    if vendor == GENERIC_PARSER:
+        return _parse_generic(upload)
+
     active = backends or default_backends()
     chosen = vendor or (active.detect or default_detector)(upload.text)
     if chosen is None:
-        raise UnsupportedVendorError(_NO_PARSER_MESSAGE)
+        return _parse_generic(upload)
+    if not isinstance(chosen, parsed.Vendor):
+        raise ConfigInputError("Unknown vendor selection.")
 
     tokenizer = active.tokenizers.get(chosen)
     if tokenizer is None:
@@ -113,7 +135,7 @@ def audit_config_upload(
     filename: str | None,
     rules: RuleSet,
     *,
-    vendor: parsed.Vendor | None = None,
+    vendor: parsed.Vendor | str | None = None,
     frameworks: Iterable[str] | None = None,
     database: Path | str | None = None,
     backends: Backends | None = None,
