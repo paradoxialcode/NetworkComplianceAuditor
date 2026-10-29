@@ -1,0 +1,26 @@
+# Master list of remediation_key values used by data/checks/*.yaml
+# The remediation owner writes vendor commands (cisco / fortinet / junos) for each key.
+disable_telnet: Turn off Telnet on all management lines; allow SSH only.
+enable_ssh: Enable SSH server (generate keys, bind to management lines).
+enforce_ssh_v2: Force SSH protocol version 2 only.
+disable_http_server: Turn off the plain HTTP management server.
+set_session_timeout: Set idle session timeout to 10 minutes or less.
+remove_default_snmp_community: Remove public/private communities; use unique strings or SNMPv3.
+set_login_banner: Configure a legal warning banner shown before login.
+enable_aaa: Enable AAA (new-model / admin auth settings).
+configure_remote_auth: Add a TACACS+ or RADIUS server for admin login.
+enable_password_encryption: Enable password encryption so passwords are not readable.
+remove_plaintext_passwords: Replace clear-text credentials with hashed secrets.
+set_login_lockout: Lock/delay login after 5 or fewer failed attempts.
+set_enable_secret: Set a hashed privileged (enable) secret.
+enable_logging: Turn on logging.
+configure_remote_syslog: Send logs to a remote syslog server.
+enable_log_timestamps: Add date/time to every log message.
+configure_ntp: Configure at least two NTP servers.
+set_log_level: Set syslog level to informational (6).
+disable_source_routing: Disable IP source routing.
+disable_directed_broadcast: Disable IP directed broadcast on interfaces.
+disable_icmp_redirects: Disable ICMP redirects on interfaces.
+restrict_mgmt_access: Limit management access to trusted hosts using ACL / trusted-host.
+remove_permit_any_any: Replace permit any-any rules with specific allow rules.
+enable_antispoofing: Enable uRPF / reverse-path check on external interfaces.

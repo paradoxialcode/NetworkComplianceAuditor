@@ -1,0 +1,78 @@
+# Category: authentication  (AAA, passwords, lockout)
+- id: AUTH-001
+  title: AAA is enabled
+  category: authentication
+  severity: high
+  description: Authentication, authorization and accounting must be turned on.
+  applies_to: [cisco, fortinet, junos]
+  field: auth.aaa_enabled
+  operator: equals
+  expected: true
+  on_missing: fail
+  nist: [IA-2, AC-3]
+  remediation_key: enable_aaa
+
+- id: AUTH-002
+  title: Central authentication server (TACACS+/RADIUS) is configured
+  category: authentication
+  severity: medium
+  description: Admin logins should be verified centrally, not only by local accounts.
+  applies_to: [cisco, fortinet, junos]
+  field: auth.remote_auth_server_count
+  operator: gte
+  expected: 1
+  on_missing: fail
+  nist: [IA-2, AC-2]
+  remediation_key: configure_remote_auth
+
+- id: AUTH-003
+  title: Password encryption is enabled
+  category: authentication
+  severity: high
+  description: Stored passwords must not be readable in the configuration file.
+  applies_to: [cisco, fortinet, junos]
+  field: auth.password_encryption_enabled
+  operator: equals
+  expected: true
+  on_missing: fail
+  nist: [IA-5]
+  remediation_key: enable_password_encryption
+
+- id: AUTH-004
+  title: No plain-text passwords in configuration
+  category: authentication
+  severity: critical
+  description: Count of credentials stored as clear text must be zero.
+  applies_to: [cisco, fortinet, junos]
+  field: auth.plaintext_password_count
+  operator: equals
+  expected: 0
+  on_missing: fail
+  nist: [IA-5]
+  remediation_key: remove_plaintext_passwords
+
+- id: AUTH-005
+  title: Login lockout after 5 or fewer failed attempts
+  category: authentication
+  severity: medium
+  description: Limits brute-force password guessing.
+  applies_to: [cisco, fortinet, junos]
+  field: auth.max_login_attempts
+  operator: lte
+  expected: 5
+  on_missing: fail
+  nist: [AC-7]
+  remediation_key: set_login_lockout
+
+- id: AUTH-006
+  title: Privileged mode uses a secret (hashed) password
+  category: authentication
+  severity: high
+  description: Privileged/enable access must be protected by a hashed secret.
+  applies_to: [cisco, junos]
+  field: auth.privileged_secret_set
+  operator: equals
+  expected: true
+  on_missing: fail
+  nist: [IA-5, AC-6]
+  remediation_key: set_enable_secret
