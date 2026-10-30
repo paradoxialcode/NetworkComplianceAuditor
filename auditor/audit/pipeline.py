@@ -8,9 +8,11 @@ from typing import Any, Final
 
 from auditor.parsers import normalizer as parsed
 from auditor.schema.baseline import SecurityBaseline
+from auditor.training.patterns import PatternRule
 
 from .adapter import to_schema_baseline
 from .generic import build_generic_baseline
+from .trained import build_trained_baseline
 from .service import AuditOutcome, RuleSet, run_device_audit
 from .upload import MAX_UPLOAD_BYTES, UploadedConfig, UploadError, read_config_upload
 
@@ -21,6 +23,7 @@ Normalizer = Callable[[Sequence[Any], parsed.Vendor], parsed.SecurityBaseline]
 Detector = Callable[[str], parsed.Vendor | None]
 
 GENERIC_PARSER: Final = "generic"
+TRAINED_PARSER: Final = "trained"
 
 _NO_PARSER_MESSAGE = (
     "No built-in parser is available for the selected vendor. Choose another vendor, use the generic parser, "
@@ -51,6 +54,7 @@ class ParseResult:
     vendor_detected: bool
     parser: str = "builtin"
     completeness: tuple[int, int] | None = None
+    rules_matched: tuple[int, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +96,25 @@ def _parse_generic(upload: UploadedConfig) -> ParseResult:
     )
 
 
+def _parse_trained(upload: UploadedConfig, vendor: parsed.Vendor, rules: Sequence[PatternRule]) -> ParseResult:
+    try:
+        result = build_trained_baseline(
+            upload.text, rules, vendor, filename=upload.filename, sha256=upload.sha256
+        )
+    except ValueError as exc:
+        logger.warning("trained parse failed for vendor %s: %s", vendor.value, type(exc).__name__)
+        raise ConfigInputError("The file could not be parsed with the trained rules.") from exc
+    return ParseResult(
+        baseline=result.baseline,
+        vendor=vendor,
+        upload=upload,
+        vendor_detected=False,
+        parser=TRAINED_PARSER,
+        completeness=(len(result.mapped), result.total_basics),
+        rules_matched=(result.rules_matched, result.rules_total),
+    )
+
+
 def parse_config_upload(
     data: bytes,
     filename: str | None = None,
@@ -99,6 +122,7 @@ def parse_config_upload(
     vendor: parsed.Vendor | str | None = None,
     backends: Backends | None = None,
     max_bytes: int = MAX_UPLOAD_BYTES,
+    trained_rules: Sequence[PatternRule] | None = None,
 ) -> ParseResult:
     try:
         upload = read_config_upload(data, filename, max_bytes=max_bytes)
@@ -117,6 +141,9 @@ def parse_config_upload(
 
     tokenizer = active.tokenizers.get(chosen)
     if tokenizer is None:
+        usable = [rule for rule in trained_rules or () if isinstance(rule, PatternRule) and rule.vendor is chosen]
+        if usable:
+            return _parse_trained(upload, chosen, usable)
         raise UnsupportedVendorError(_NO_PARSER_MESSAGE)
 
     try:
@@ -140,7 +167,10 @@ def audit_config_upload(
     database: Path | str | None = None,
     backends: Backends | None = None,
     max_bytes: int = MAX_UPLOAD_BYTES,
+    trained_rules: Sequence[PatternRule] | None = None,
 ) -> UploadAudit:
-    parse = parse_config_upload(data, filename, vendor=vendor, backends=backends, max_bytes=max_bytes)
+    parse = parse_config_upload(
+        data, filename, vendor=vendor, backends=backends, max_bytes=max_bytes, trained_rules=trained_rules
+    )
     outcome = run_device_audit(parse.baseline, rules, frameworks, database)
     return UploadAudit(outcome=outcome, parse=parse)

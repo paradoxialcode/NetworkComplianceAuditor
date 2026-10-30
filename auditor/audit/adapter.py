@@ -9,10 +9,12 @@ from auditor.schema import baseline as schema
 _VENDORS: Final = {
     parsed.Vendor.CISCO_IOS: schema.Vendor.Cisco,
     parsed.Vendor.FORTIOS: schema.Vendor.Fortinet,
+    parsed.Vendor.JUNOS: schema.Vendor.Juniper,
 }
 _PLATFORMS: Final = {
     parsed.Vendor.CISCO_IOS: "Cisco IOS",
     parsed.Vendor.FORTIOS: "FortiOS",
+    parsed.Vendor.JUNOS: "Junos",
 }
 _FALLBACK_HOSTNAME: Final = "unknown-device"
 _MAX_NAME_LEN: Final = 255

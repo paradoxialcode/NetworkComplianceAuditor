@@ -18,7 +18,7 @@ from auditor.ingestion.detector import (
     Signal,
     detect_vendor,
 )
-from auditor.parsers.normalizer import Vendor, normalize
+from auditor.parsers.normalizer import BUILTIN_VENDORS, Vendor, normalize
 from auditor.parsers.tokenizers.fortinet import tokenize_fortinet
 from auditor.parsers.tokenizers.indented import tokenize_indented
 
@@ -306,7 +306,7 @@ def test_every_rule_is_reachable_and_every_signal_is_known() -> None:
     produced = {name for line in KITCHEN_SINK.split("\n") if line.strip() for name in names(line)}
     assert produced == set(det._RULES)
     assert all(rule.weight > 0 and rule.max_hits > 0 for rule in det._RULES.values())
-    assert {rule.vendor for rule in det._RULES.values()} == set(Vendor)
+    assert {rule.vendor for rule in det._RULES.values()} == set(BUILTIN_VENDORS)
     for name, rule in det._RULES.items():
         assert name.startswith("cisco-" if rule.vendor is CISCO else "forti-")
 

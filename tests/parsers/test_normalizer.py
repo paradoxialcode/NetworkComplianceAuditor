@@ -12,6 +12,7 @@ import pytest
 
 from auditor.parsers import normalizer as norm
 from auditor.parsers.normalizer import (
+    BUILTIN_VENDORS,
     REDACTED,
     Evidence,
     Fact,
@@ -625,7 +626,7 @@ def test_forti_fuzz_invariants_and_no_secret_leaks() -> None:
 
 # ============================================================== validation ====
 def test_empty_tokens_give_empty_baselines() -> None:
-    for vendor in Vendor:
+    for vendor in BUILTIN_VENDORS:
         assert normalize([], vendor) == SecurityBaseline(vendor=vendor)
         assert normalize((), vendor) == SecurityBaseline(vendor=vendor)
 
@@ -729,10 +730,13 @@ def test_normalization_is_deterministic() -> None:
     assert fgt(FORTI) == fgt(FORTI)
 
 
-def test_only_cisco_and_fortios_are_supported() -> None:
-    assert [str(v) for v in Vendor] == ["cisco_ios", "fortios"]
+def test_only_cisco_and_fortios_have_builtin_normalizers() -> None:
+    assert [str(v) for v in Vendor] == ["cisco_ios", "fortios", "junos"]
+    assert BUILTIN_VENDORS == (Vendor.CISCO_IOS, Vendor.FORTIOS)
     with pytest.raises(ValueError):
-        Vendor("junos")
+        Vendor("palo")
+    with pytest.raises(ValueError, match="no built-in normalizer"):
+        normalize([], Vendor.JUNOS)
 
 
 # ============================================================ performance ====

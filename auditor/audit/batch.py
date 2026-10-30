@@ -7,6 +7,7 @@ from pathlib import Path
 
 from auditor.parsers import normalizer as parsed
 from auditor.reporting.pdf_builder import build_report_bytes
+from auditor.training.patterns import PatternRule
 
 from .pipeline import (
     Backends,
@@ -42,6 +43,7 @@ def _audit_one(
     frameworks: list[str] | None,
     backends: Backends | None,
     max_bytes: int,
+    trained_rules: Sequence[PatternRule] | None = None,
 ) -> BatchItem:
     display = safe_filename(name)
     try:
@@ -54,6 +56,7 @@ def _audit_one(
             database=database,
             backends=backends,
             max_bytes=max_bytes,
+            trained_rules=trained_rules,
         )
     except UnsupportedVendorError as exc:
         return BatchItem(filename=display, error=str(exc), needs_training=True)
@@ -87,10 +90,12 @@ def audit_batch(
     frameworks: Iterable[str] | None = None,
     backends: Backends | None = None,
     max_bytes: int = MAX_UPLOAD_BYTES,
+    trained_rules: Sequence[PatternRule] | None = None,
 ) -> list[BatchItem]:
     if len(files) > MAX_FILES_PER_BATCH:
         raise ValueError(f"at most {MAX_FILES_PER_BATCH} files can be audited at once")
     selected = None if frameworks is None else list(frameworks)
     return [
-        _audit_one(name, data, rules, database, vendor, selected, backends, max_bytes) for name, data in files
+        _audit_one(name, data, rules, database, vendor, selected, backends, max_bytes, trained_rules)
+        for name, data in files
     ]

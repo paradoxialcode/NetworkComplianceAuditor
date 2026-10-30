@@ -104,9 +104,9 @@ def test_vendor_accepted_forms(value: object) -> None:
     assert target.vendor is Vendor.FORTIOS
 
 
-@pytest.mark.parametrize("value", ["junos", "", "cisco", "cisco ios", "xml"])
+@pytest.mark.parametrize("value", ["palo", "", "cisco", "cisco ios", "xml"])
 def test_unsupported_vendor_is_rejected_without_echo(value: str) -> None:
-    with pytest.raises(ValueError, match="unsupported vendor; expected one of: cisco_ios, fortios") as info:
+    with pytest.raises(ValueError, match="unsupported vendor; expected one of: cisco_ios, fortios, junos") as info:
         make(vendor=value)
     if value:
         assert value not in str(info.value).replace("cisco_ios", "").replace("fortios", "")
@@ -607,6 +607,7 @@ def test_module_is_limited_to_modelling() -> None:
         "RuleSource",
         "PatternRule",
         "TARGET_FIELD_TYPES",
+        "clean_captured_value",
         "ensure_unique_rule_ids",
     }
     public_methods = {name for name in vars(PatternRule) if not name.startswith("_")}

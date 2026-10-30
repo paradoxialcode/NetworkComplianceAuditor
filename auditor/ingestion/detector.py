@@ -54,7 +54,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from auditor.parsers.normalizer import Vendor
+from auditor.parsers.normalizer import BUILTIN_VENDORS, Vendor
 
 __all__ = [
     "MIN_SCORE",
@@ -218,14 +218,14 @@ class Detection:
             raise ValueError("confidence must be between 0.0 and 1.0")
         if self.vendor is not None and not isinstance(self.vendor, Vendor):
             raise TypeError("vendor must be a Vendor or None")
-        if tuple(vendor for vendor, _ in self.scores) != tuple(Vendor):
+        if tuple(vendor for vendor, _ in self.scores) != BUILTIN_VENDORS:
             raise ValueError("scores must contain exactly one entry per Vendor, in Vendor order")
         if any(isinstance(score, bool) or not isinstance(score, int) or score < 0 for _, score in self.scores):
             raise ValueError("scores must be non-negative integers")
         if not all(isinstance(signal, Signal) for signal in self.signals):
             raise TypeError("signals must contain only Signal")
 
-        totals = {vendor: 0 for vendor in Vendor}
+        totals = {vendor: 0 for vendor in BUILTIN_VENDORS}
         for signal in self.signals:
             totals[signal.vendor] += signal.points
         if any(totals[vendor] != score for vendor, score in self.scores):
@@ -301,12 +301,12 @@ def detect_vendor(content: str) -> Detection:
         key=lambda signal: (signal.line_number, signal.name),
     )
 
-    totals = {vendor: 0 for vendor in Vendor}
+    totals = {vendor: 0 for vendor in BUILTIN_VENDORS}
     for signal in signals:
         totals[signal.vendor] += signal.points
-    scores = tuple((vendor, totals[vendor]) for vendor in Vendor)
+    scores = tuple((vendor, totals[vendor]) for vendor in BUILTIN_VENDORS)
 
-    top_vendor = max(Vendor, key=lambda vendor: totals[vendor])
+    top_vendor = max(BUILTIN_VENDORS, key=lambda vendor: totals[vendor])
     top = totals[top_vendor]
     runner_up = max((score for vendor, score in totals.items() if vendor is not top_vendor), default=0)
 

@@ -222,7 +222,13 @@ def test_upload_page_renders_with_disabled_run_button(env):
     assert not at.exception
     run = [b for b in at.button if b.label == "Run audit"][0]
     assert run.disabled is True
-    assert at.selectbox[0].options == ["Auto-detect", "Cisco IOS", "FortiOS", "Other vendor (generic parser)"]
+    assert at.selectbox[0].options == [
+        "Auto-detect",
+        "Cisco IOS",
+        "FortiOS",
+        "Juniper Junos (trained rules)",
+        "Other vendor (generic parser)",
+    ]
     assert at.multiselect[0].value == ["nist"]
 
 
@@ -281,3 +287,122 @@ def test_upload_page_renders_batch_results(env):
     assert any("1 configuration block(s) were not recognized" in w.value for w in at.warning)
     assert any(MARKDOWN_HOSTNAME in t.value for t in at.text)
     assert not any("evil.example" in m.value for m in at.markdown)
+
+
+JUNOS_CONFIG = "set system host-name junos-fw-1\nset system services ssh\nset system ntp server 10.0.0.1\n"
+
+
+def junos_rules():
+    from auditor.parsers.normalizer import Vendor as ParsedVendor
+    from auditor.training.patterns import MatchMethod, PatternRule
+
+    return [
+        PatternRule(
+            rule_id="junos-telnet",
+            vendor=ParsedVendor.JUNOS,
+            method=MatchMethod.PREFIX,
+            expression="set system services telnet",
+            target_field="telnet_enabled",
+            suggested_value=True,
+            confidence=0.9,
+            explanation="Telnet enabled",
+            absent_value=False,
+        ),
+        PatternRule(
+            rule_id="junos-ntp",
+            vendor=ParsedVendor.JUNOS,
+            method=MatchMethod.REGEX,
+            expression=r"set system ntp server (\S+)",
+            target_field="ntp_servers",
+            suggested_value=None,
+            confidence=0.9,
+            explanation="NTP server",
+            capture_group=1,
+        ),
+    ]
+
+
+def test_upload_page_renders_trained_results(env):
+    from auditor.audit.batch import audit_batch
+
+    data_dir, database = env
+    rules = load_rule_set(data_dir)
+    batch = audit_batch(
+        [("j.set", JUNOS_CONFIG.encode())],
+        rules,
+        database=database,
+        vendor=__import__("auditor.parsers.normalizer", fromlist=["Vendor"]).Vendor.JUNOS,
+        trained_rules=junos_rules(),
+    )
+    assert batch[0].error is None
+    at = AppTest.from_file(str(APP_DIR / "pages/1_Upload_and_Audit.py"), default_timeout=30)
+    at.session_state["batch"] = batch
+    at.run()
+    assert not at.exception
+    assert any("Parser: trained rules" in c.value for c in at.caption)
+    assert any("1 of 2 trained rules matched" in i.value for i in at.info)
+
+
+def test_training_page_creates_and_saves_a_capture_rule(env):
+    data_dir, _ = env
+    at = run_page("pages/2_Training.py")
+    assert not at.exception
+    select = {w.label: w for w in at.selectbox}
+    select["Vendor"].select("junos")
+    select["Matching method"].select("regex")
+    at.run()
+    {w.label: w for w in at.selectbox}["Target field"].select("ntp_servers")
+    at.run()
+    assert {w.label: w for w in at.selectbox}["Target field"].value == "ntp_servers"
+    form = {w.label: w for w in at.text_input}
+    form["Rule ID"].set_value("junos-ntp")
+    form["Configuration expression"].set_value(r"set system ntp server (\S+)")
+    at.number_input[0].set_value(1)
+    at.text_area[0].set_value("NTP server")
+    [b for b in at.button if b.label == "Validate and add rule"][0].click().run()
+    assert not at.exception, at.exception
+    assert not at.error
+    [b for b in at.button if b.label == "Save rules to JSON"][0].click().run()
+    saved = (data_dir / "training_rules.json").read_text(encoding="utf-8")
+    assert '"capture_group": 1' in saved
+    assert '"vendor": "junos"' in saved
+    assert '"target_field": "ntp_servers"' in saved
+
+
+def test_training_page_offers_capture_only_for_regex_rules_on_text_fields(env):
+    at = run_page("pages/2_Training.py")
+    select = {w.label: w for w in at.selectbox}
+    assert len(at.number_input) == 0
+    select["Vendor"].select("junos")
+    select["Matching method"].select("regex")
+    at.run()
+    {w.label: w for w in at.selectbox}["Target field"].select("ntp_servers")
+    at.run()
+    assert len(at.number_input) == 1
+    assert not any(w.label.startswith("Value when no line matches") for w in at.selectbox)
+    {w.label: w for w in at.selectbox}["Target field"].select("telnet_enabled")
+    at.run()
+    assert len(at.number_input) == 0
+    assert any(w.label.startswith("Value when no line matches") for w in at.selectbox)
+
+
+def test_training_page_saves_an_absence_rule(env):
+    data_dir, _ = env
+    at = run_page("pages/2_Training.py")
+    select = {w.label: w for w in at.selectbox}
+    select["Vendor"].select("junos")
+    select["Matching method"].select("prefix")
+    at.run()
+    {w.label: w for w in at.selectbox}["Target field"].select("telnet_enabled")
+    at.run()
+    form = {w.label: w for w in at.text_input}
+    form["Rule ID"].set_value("junos-telnet")
+    form["Configuration expression"].set_value("set system services telnet")
+    {w.label: w for w in at.selectbox}["Value when no line matches (optional)"].select("False / Disabled")
+    at.text_area[0].set_value("Telnet service enabled")
+    [b for b in at.button if b.label == "Validate and add rule"][0].click().run()
+    assert not at.error
+    [b for b in at.button if b.label == "Save rules to JSON"][0].click().run()
+    saved = (data_dir / "training_rules.json").read_text(encoding="utf-8")
+    assert '"absent_value": false' in saved
+    assert '"target_field": "telnet_enabled"' in saved

@@ -440,3 +440,10 @@ def build_generic_baseline(text: str, *, filename: str | None = None, sha256: st
         unmatched_count=unmatched_count,
         conflicts=conflicts,
     )
+
+
+def flatten_lines(text: str) -> list[tuple[int, tuple[str, ...], bool]]:
+    if not isinstance(text, str):
+        raise TypeError(f"text must be a str, got {type(text).__name__}")
+    lines, _ = _flatten(text)
+    return [(line.number, line.words, _is_sensitive(line.words)) for line in lines]

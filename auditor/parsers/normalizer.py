@@ -10,6 +10,8 @@ engine audits, identical in shape for every vendor.
 Vendor mapping:
     ``Vendor.CISCO_IOS``  <- ``ConfigToken``  (``tokenize_indented``)
     ``Vendor.FORTIOS``    <- ``FortiToken``   (``tokenize_fortinet``)
+    ``Vendor.JUNOS``      <- no built-in normalizer; its baseline is built
+                            from trained rules (``auditor/audit/trained.py``)
 
 Design rules:
     - ``None`` (or an empty tuple) means "not stated in the configuration".
@@ -72,6 +74,7 @@ from auditor.parsers.tokenizers.indented import ConfigToken, TokenKind
 __all__ = [
     "REDACTED",
     "Vendor",
+    "BUILTIN_VENDORS",
     "Evidence",
     "Fact",
     "InterfaceBaseline",
@@ -91,6 +94,10 @@ class Vendor(StrEnum):
 
     CISCO_IOS = "cisco_ios"
     FORTIOS = "fortios"
+    JUNOS = "junos"
+
+
+BUILTIN_VENDORS: tuple[Vendor, ...] = (Vendor.CISCO_IOS, Vendor.FORTIOS)
 
 
 @dataclass(frozen=True, slots=True)
@@ -685,12 +692,17 @@ def normalize(
     Raises:
         TypeError: If ``vendor`` is not a Vendor, ``tokens`` is not a
             sequence, or a token has the wrong type for ``vendor``.
-        ValueError: If the tokens are out of source order or come from more
-            than one source file.
+        ValueError: If ``vendor`` is not in ``BUILTIN_VENDORS``, or the tokens
+            are out of source order or come from more than one source file.
     """
 
     if not isinstance(vendor, Vendor):
         raise TypeError(f"vendor must be a Vendor, got {type(vendor).__name__}")
+
+    if vendor not in BUILTIN_VENDORS:
+        raise ValueError(
+            f"vendor {vendor.value} has no built-in normalizer; build its baseline from trained rules"
+        )
 
     if vendor is Vendor.CISCO_IOS:
         cisco, source_file = _require(tokens, ConfigToken, vendor)

@@ -20,8 +20,16 @@ Guarantees:
       field's type (strict: ``"true"`` or ``1`` is not a bool).
     - ``confidence`` is a finite number in 0.0-1.0 and is stored as a float.
     - A ``REGEX`` expression must compile, must not match the empty string,
-      and must not use character-class syntax that Python warns will change
-      meaning (nested ``[``, ``--``, ``&&``, ``~~``, ``||``).
+      must not use character-class syntax that Python warns will change
+      meaning (nested ``[``, ``--``, ``&&``, ``~~``, ``||``), and must survive
+      the adversarial probes of :mod:`auditor.regex_safety` (a pattern prone
+      to catastrophic backtracking such as ``(a+)+$`` is rejected).
+    - ``capture_group`` (REGEX rules on text fields) makes the rule take its
+      value from that group of the matching line instead of a constant, and
+      then ``suggested_value`` must be ``None``.
+    - ``absent_value`` (boolean fields) is the value the field takes when no
+      line matches the rule; see :mod:`auditor.audit.trained` for when it
+      applies.
     - Secrets are rejected, never stored: private keys, password hashes, URL
       credentials, long high-entropy tokens, and (in configuration-like text)
       a secret keyword followed by a literal value. Error messages name the
@@ -39,9 +47,9 @@ Known limitations:
       (``username admin secret``) or use a regex placeholder
       (``^username \\S+ secret \\S+$``).
     - Regular expressions are checked for syntax, for ambiguous
-      character-class syntax, and for matching the empty string. Runtime of a
-      pattern (catastrophic backtracking) is the matcher's responsibility to
-      bound.
+      character-class syntax, for matching the empty string and against a
+      fixed set of adversarial probes. The probes cannot prove a pattern safe,
+      so the matcher also enforces a per-match timeout.
     - Expressions are stored trimmed, because configuration tokens are
       trimmed; leading or trailing spaces in an expression are not preserved.
 
@@ -76,6 +84,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import TypeVar
 
+from auditor import regex_safety
 from auditor.parsers.normalizer import SecurityBaseline, Vendor
 from auditor.parsers.tokenizers.fortinet import SENSITIVE_KEYS as _FORTI_SENSITIVE_KEYS
 
@@ -84,6 +93,7 @@ __all__ = [
     "RuleSource",
     "PatternRule",
     "TARGET_FIELD_TYPES",
+    "clean_captured_value",
     "ensure_unique_rule_ids",
 ]
 
@@ -350,6 +360,18 @@ def _validate_regex(expression: str) -> None:
     if compiled.search("") is not None:
         raise ValueError("regular expression must not match the empty string")
 
+    try:
+        regex_safety.compile_pattern(expression)
+    except regex_safety.UnsafePatternError:
+        raise ValueError(
+            "regular expression is too slow on adversarial input "
+            "(possible catastrophic backtracking)"
+        ) from None
+    except ValueError:
+        raise ValueError(
+            "expression is not supported by the matching engine"
+        ) from None
+
 
 def _clean_expression(value: object, method: MatchMethod) -> str:
     text = _clean_text(value, "expression", max_length=MAX_EXPRESSION_LENGTH, collapse=False)
@@ -371,7 +393,58 @@ def _clean_target(value: object, vendor: Vendor) -> str:
     return text
 
 
-def _clean_suggested(value: object, target: str) -> str | bool:
+def _clean_capture_group(
+    value: object, method: MatchMethod, expression: str, target: str
+) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise TypeError(f"capture_group must be an int or None, got {type(value).__name__}")
+    if method is not MatchMethod.REGEX:
+        raise ValueError("capture_group requires method 'regex'")
+    if TARGET_FIELD_TYPES[target] is not str:
+        raise ValueError("capture_group requires a text target_field")
+    groups = re.compile(expression).groups
+    if not 1 <= value <= groups:
+        raise ValueError(f"capture_group must be between 1 and {groups} for this expression")
+    return value
+
+
+def _clean_absent(value: object, target: str) -> bool | None:
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise TypeError(f"absent_value must be a bool or None, got {type(value).__name__}")
+    if TARGET_FIELD_TYPES[target] is not bool:
+        raise ValueError("absent_value requires a boolean target_field")
+    return value
+
+
+def clean_captured_value(value: object) -> str | None:
+    """Return ``value`` as a safe text value, or ``None`` if it is not one.
+
+    Used for text captured from a configuration line: it must be non-empty,
+    single-spaced, free of control characters, at most 255 characters and free
+    of secrets. The reason for a rejection is deliberately not reported, since
+    it could echo configuration content.
+    """
+
+    try:
+        text = _clean_text(
+            value, "captured value", max_length=MAX_SUGGESTED_LENGTH, collapse=True
+        )
+        _reject_secret(text, "captured value", config_like=True)
+    except (TypeError, ValueError):
+        return None
+    return text
+
+
+def _clean_suggested(value: object, target: str, *, captured: bool = False) -> str | bool | None:
+    if captured:
+        if value is not None:
+            raise ValueError("suggested_value must be None when capture_group is set")
+        return None
+
     if TARGET_FIELD_TYPES[target] is bool:
         if not isinstance(value, bool):
             raise TypeError(
@@ -449,10 +522,15 @@ class PatternRule:
         target_field: ``SecurityBaseline`` field the rule suggests a value
             for; one of ``TARGET_FIELD_TYPES``.
         suggested_value: Suggested value; a bool for boolean fields, one
-            text entry for the others.
+            text entry for the others, ``None`` only when ``capture_group``
+            is set.
         confidence: Confidence in 0.0-1.0, stored as a float.
         explanation: Human-readable reason for the rule.
         source: Optional description of where the rule came from.
+        capture_group: Optional 1-based regex group whose text becomes the
+            value (``REGEX`` rules on text fields only).
+        absent_value: Optional bool the field takes when no line matches this
+            rule (boolean fields only).
 
     Raises:
         TypeError: If a field has the wrong type.
@@ -465,10 +543,12 @@ class PatternRule:
     method: MatchMethod
     expression: str
     target_field: str
-    suggested_value: str | bool
+    suggested_value: str | bool | None
     confidence: float
     explanation: str
     source: RuleSource | None = None
+    capture_group: int | None = None
+    absent_value: bool | None = None
 
     def __post_init__(self) -> None:
         rule_id = _clean_rule_id(self.rule_id)
@@ -476,7 +556,9 @@ class PatternRule:
         method = _coerce_enum(self.method, MatchMethod, "method")
         expression = _clean_expression(self.expression, method)
         target = _clean_target(self.target_field, vendor)
-        suggested = _clean_suggested(self.suggested_value, target)
+        capture = _clean_capture_group(self.capture_group, method, expression, target)
+        absent = _clean_absent(self.absent_value, target)
+        suggested = _clean_suggested(self.suggested_value, target, captured=capture is not None)
         confidence = _clean_confidence(self.confidence)
         explanation = _clean_prose(self.explanation, "explanation", MAX_EXPLANATION_LENGTH)
 
@@ -492,6 +574,8 @@ class PatternRule:
         object.__setattr__(self, "suggested_value", suggested)
         object.__setattr__(self, "confidence", confidence)
         object.__setattr__(self, "explanation", explanation)
+        object.__setattr__(self, "capture_group", capture)
+        object.__setattr__(self, "absent_value", absent)
 
 
 def ensure_unique_rule_ids(rules: Iterable[PatternRule]) -> None:

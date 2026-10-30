@@ -16,7 +16,11 @@ Non-responsibilities:
 Semantics:
     - EXACT: ``text == expression``.
     - PREFIX: ``text.startswith(expression)``; empty expression is rejected.
-    - REGEX: ``re.fullmatch`` against the whole line (no implicit search).
+    - REGEX: ``fullmatch`` against the whole line (no implicit search), run
+      through :mod:`auditor.regex_safety` (adversarial-input probes when a
+      pattern is first compiled, and a per-match timeout).
+    - :func:`resolve` returns the value a rule yields for a line: its constant
+      ``suggested_value``, or the text of its ``capture_group``.
     - ``text`` must be one line: it may not contain ``\\n``. Tokenizers
       split on ``\\n`` only; leading whitespace is the caller's concern.
 
@@ -26,19 +30,23 @@ configuration line cannot leak through exceptions.
 
 from __future__ import annotations
 
-import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import assert_never
 
-from auditor.training.patterns import MatchMethod, PatternRule
+import regex
+
+from auditor import regex_safety
+from auditor.training.patterns import MatchMethod, PatternRule, clean_captured_value
 
 __all__ = [
     "MatchResult",
+    "Resolution",
     "evaluate",
     "matches",
     "matching_rules",
+    "resolve",
 ]
 
 
@@ -48,6 +56,19 @@ class MatchResult:
 
     matched: bool
     rule: PatternRule
+
+
+@dataclass(frozen=True, slots=True)
+class Resolution:
+    """Outcome of resolving one rule against one line.
+
+    ``matched`` says whether the line matched. ``value`` is what the rule
+    yields: ``None`` when the line did not match, or when a capture group
+    captured nothing usable (empty, too long, or secret-like text).
+    """
+
+    matched: bool
+    value: bool | str | None
 
 
 def _require_rule(rule: object) -> PatternRule:
@@ -87,7 +108,7 @@ def _require_text(text: object) -> str:
 
 
 @lru_cache(maxsize=1024)
-def _compile(expression: str) -> re.Pattern[str]:
+def _compile(expression: str) -> regex.Pattern[str]:
     """Compile a regex once; invalid patterns raise ValueError.
 
     >>> _compile("ab+").fullmatch("abbb") is not None
@@ -100,9 +121,16 @@ def _compile(expression: str) -> re.Pattern[str]:
     ValueError: invalid regular expression in rule
     """
     try:
-        return re.compile(expression)
-    except re.error as exc:
+        return regex_safety.compile_pattern(expression)
+    except ValueError as exc:
         raise ValueError("invalid regular expression in rule") from exc
+
+
+def _fullmatch(expression: str, text: str) -> regex.Match[str] | None:
+    try:
+        return _compile(expression).fullmatch(text, timeout=regex_safety.REGEX_TIMEOUT_SECONDS)
+    except TimeoutError:
+        raise ValueError("regular expression timed out on this line") from None
 
 
 def matches(rule: PatternRule, text: str) -> bool:
@@ -135,9 +163,33 @@ def matches(rule: PatternRule, text: str) -> bool:
                 raise ValueError("PREFIX rule has an empty expression")
             return text.startswith(expression)
         case MatchMethod.REGEX:
-            return _compile(expression).fullmatch(text) is not None
+            return _fullmatch(expression, text) is not None
         case _:
             assert_never(method)
+
+
+def resolve(rule: PatternRule, text: str) -> Resolution:
+    """Match ``rule`` against ``text`` and return the value it yields.
+
+    For a rule without ``capture_group`` the value is the rule's
+    ``suggested_value``. With a capture group it is the captured text, cleaned
+    by :func:`auditor.training.patterns.clean_captured_value`; ``None`` if the
+    group did not take part in the match or the text is not a safe value.
+
+    Raises:
+        TypeError: ``rule`` is not a PatternRule or ``text`` is not a str.
+        ValueError: as for :func:`matches`.
+    """
+    rule = _require_rule(rule)
+    text = _require_text(text)
+    if rule.capture_group is None:
+        if not matches(rule, text):
+            return Resolution(False, None)
+        return Resolution(True, rule.suggested_value)
+    found = _fullmatch(rule.expression, text)
+    if found is None:
+        return Resolution(False, None)
+    return Resolution(True, clean_captured_value(found.group(rule.capture_group)))
 
 
 def evaluate(rule: PatternRule, text: str) -> MatchResult:
