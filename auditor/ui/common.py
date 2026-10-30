@@ -13,8 +13,11 @@ from auditor.audit.store import init_db
 from auditor.compliance.models import CheckResult
 from auditor.compliance.scoring import FrameworkScore
 from auditor.reporting.styles import FRAMEWORK_LABELS, STATUS_LABELS
+from auditor.training.patterns import PatternRule
+from auditor.training.store import load_rules
 
 BACKENDS: Backends | None = None
+TRAINING_RULES_FILE = "training_rules.json"
 _MAX_EVIDENCE_CELL = 200
 
 
@@ -33,6 +36,18 @@ def get_database() -> Path:
 @st.cache_resource(show_spinner="Loading rules...")
 def _load_rules(data_dir: str) -> RuleSet:
     return load_rule_set(Path(data_dir))
+
+
+def training_rules_path() -> Path:
+    return get_settings().data_dir / TRAINING_RULES_FILE
+
+
+def load_trained_rules() -> tuple[PatternRule, ...]:
+    try:
+        return load_rules(training_rules_path(), missing_ok=True)
+    except (OSError, ValueError):
+        st.warning("The saved training rules could not be read, so they were not used.")
+        return ()
 
 
 def get_rules() -> RuleSet | None:

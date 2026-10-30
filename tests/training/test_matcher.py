@@ -439,9 +439,11 @@ class TestWithValidatedRules:
 def test_public_api() -> None:
     assert set(matcher.__all__) == {
         "MatchResult",
+        "Resolution",
         "evaluate",
         "matches",
         "matching_rules",
+        "resolve",
     }
     for name in matcher.__all__:
         assert hasattr(matcher, name)

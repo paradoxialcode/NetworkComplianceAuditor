@@ -226,6 +226,20 @@ def _summary_section(outcome: AuditOutcome, styles: Styles) -> Story:
         for fact in outcome.baseline.facts
         if fact.evidence is not None and (fact.evidence.mapping_id or "").startswith("generic:")
     )
+    trained = sum(
+        1
+        for fact in outcome.baseline.facts
+        if fact.evidence is not None and (fact.evidence.mapping_id or "").startswith("trained:")
+    )
+    if trained:
+        story.append(
+            _para(
+                f"Note: {trained} value(s) were derived from trained mapping rules (taught by an administrator) rather "
+                "than a built-in parser, each carrying the rule's confidence score. Verify them before relying on pass "
+                "results that depend on them; the evidence column shows the rule and the line used.",
+                styles["body"],
+            )
+        )
     if inferred:
         story.append(
             _para(

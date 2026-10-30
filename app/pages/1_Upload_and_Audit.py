@@ -1,7 +1,7 @@
 import streamlit as st
 
 from auditor.audit.batch import MAX_FILES_PER_BATCH, audit_batch
-from auditor.audit.pipeline import GENERIC_PARSER
+from auditor.audit.pipeline import GENERIC_PARSER, TRAINED_PARSER
 from auditor.compliance.models import NONCOMPLIANT, Status
 from auditor.parsers.normalizer import Vendor
 from auditor.ui import common
@@ -17,6 +17,7 @@ VENDOR_CHOICES = {
     "Auto-detect": None,
     "Cisco IOS": Vendor.CISCO_IOS,
     "FortiOS": Vendor.FORTIOS,
+    "Juniper Junos (trained rules)": Vendor.JUNOS,
     "Other vendor (generic parser)": GENERIC_PARSER,
 }
 
@@ -48,6 +49,7 @@ if run and files:
                 frameworks=frameworks,
                 backends=common.BACKENDS,
                 max_bytes=settings.max_upload_bytes,
+                trained_rules=common.load_trained_rules(),
             )
 
 items = st.session_state.get("batch")
@@ -69,6 +71,15 @@ if items:
                 st.info(
                     f"No built-in parser matched this file, so {mapped} of {total} basic details were inferred "
                     "with confidence scores. Use the Training page to teach the system this vendor for a fuller assessment."
+                )
+            elif parse.parser == TRAINED_PARSER:
+                mapped, total = parse.completeness or (0, 0)
+                used, available = parse.rules_matched or (0, 0)
+                st.caption(f"Parser: trained rules ({parse.vendor.value}) - audit #{outcome.audit_id}")
+                st.info(
+                    f"{used} of {available} trained rules matched this file and {mapped} of {total} basic details "
+                    "were mapped. Values taken from trained rules are listed with their rule and confidence in the "
+                    "report; add rules on the Training page to improve coverage."
                 )
             else:
                 st.caption(
