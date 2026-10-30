@@ -234,21 +234,3 @@ class PatternModel:
             allowed = ", ".join(sorted(TARGET_FIELD_TYPES))
             raise ValueError(f"unsupported target_field; expected one of: {allowed}")
         return self._by_key.get((wanted, target_field), ())
-
-
-"""Database schema (stdlib sqlite3), applied with ``session.migrate``.
-
-``MIGRATIONS[0]`` is schema version 1. Never edit a migration that has
-shipped; append a new one instead.
-
-The ``rules`` table keeps each rule as validated JSON text in ``body`` (the
-same encoding ``store.py`` uses) plus the columns needed for lookups. A new
-``PatternRule`` field therefore needs no schema change.
-
-``origin`` says who owns a row: ``seed`` rows are managed by ``seed.py`` and
-may be replaced or pruned by it; ``user`` rows (confirmed in training) are
-never touched by seeding.
-"""
-
-
-
