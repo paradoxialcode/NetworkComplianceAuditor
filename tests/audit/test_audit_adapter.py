@@ -131,7 +131,7 @@ def test_facts_omitted_when_not_stated():
     out = to_schema_baseline(
         make_parsed(telnet_enabled=None, http_management_enabled=None, password_encryption=None, local_users=())
     )
-    assert out.facts == []
+    assert [fact.key for fact in out.facts] == ["ntp_server_count"]
 
 
 def test_warnings_become_unrecognized_without_raw_lines():

@@ -351,7 +351,7 @@ def test_forti_fixture() -> None:
     assert pairs(b.local_users) == [("admin", 23), ("auditor", 26)]
     assert pair(b.telnet_enabled) == (True, 37)
     assert pair(b.http_management_enabled) == (True, 37)
-    assert b.password_encryption is None
+    assert pair(b.password_encryption) == (True, 24)
     assert ifaces(b) == [
         ("port1", 30, ("wan uplink", 31), (False, 32)),
         ("port2", 35, None, (True, 36)),
