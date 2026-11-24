@@ -1,3 +1,8 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import streamlit as st
 
 from auditor.audit.batch import MAX_FILES_PER_BATCH, audit_batch
