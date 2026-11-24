@@ -1,0 +1,10 @@
+set version 21.4R3-S3.4
+set system host-name SRX-BRANCH-01
+set system root-authentication encrypted-password "$6$salt$WeakRootHashValue"
+set system login user admin class super-user
+set system login user admin authentication encrypted-password "$6$salt$WeakAdminHashValue"
+set system services ssh
+set system services telnet
+set system services web-management http port 80
+set system ntp server 10.10.10.1
+set interfaces ge-0/0/0 unit 0 family inet address 203.0.113.20/30

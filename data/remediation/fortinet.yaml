@@ -1,0 +1,242 @@
+vendor: fortinet
+steps:
+  enable_aaa:
+    title: Configure a RADIUS server
+    commands:
+    - config user radius
+    - edit "RADIUS1"
+    - set server {{server}}
+    - set secret <SHARED_SECRET>
+    - next
+    - end
+    order: 12
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat. Keep a local admin
+      as fallback.
+    params:
+      server:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.50
+  configure_remote_auth:
+    title: Configure a RADIUS server
+    commands:
+    - config user radius
+    - edit "RADIUS1"
+    - set server {{server}}
+    - set secret <SHARED_SECRET>
+    - next
+    - end
+    order: 12
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat. Keep a local admin
+      as fallback.
+    params:
+      server:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.50
+  enable_password_encryption:
+    title: Enforce a password policy
+    commands:
+    - config system password-policy
+    - set status enable
+    - set minimum-length 12
+    - end
+    order: 20
+    risk: Applies to new passwords only.
+  remove_plaintext_passwords:
+    title: Reset admin passwords
+    commands:
+    - config system admin
+    - edit "{{admin}}"
+    - set password <PASSWORD>
+    - next
+    - end
+    order: 20
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat.
+    params:
+      admin:
+        pattern: '[A-Za-z][A-Za-z0-9_-]{0,31}'
+        default: admin
+  set_login_lockout:
+    title: Lock out after failed logins
+    commands:
+    - config system global
+    - set admin-lockout-threshold 3
+    - set admin-lockout-duration 120
+    - end
+    order: 30
+    risk: Can lock out legitimate admins.
+  enable_logging:
+    title: Enable remote logging
+    commands:
+    - config log syslogd setting
+    - set status enable
+    - set server {{syslog}}
+    - set severity information
+    - end
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      syslog:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.20
+  configure_remote_syslog:
+    title: Send logs to a syslog server
+    commands:
+    - config log syslogd setting
+    - set status enable
+    - set server {{syslog}}
+    - set severity information
+    - end
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      syslog:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.20
+  configure_ntp:
+    title: Configure two NTP servers
+    commands:
+    - config system ntp
+    - set ntpsync enable
+    - set type custom
+    - config ntpserver
+    - edit 1
+    - set server {{ntp1}}
+    - next
+    - edit 2
+    - set server {{ntp2}}
+    - next
+    - end
+    - end
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      ntp1:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.10
+      ntp2:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.11
+  set_log_level:
+    title: Log at information severity
+    commands:
+    - config log syslogd setting
+    - set severity information
+    - end
+    order: 40
+  disable_telnet:
+    title: Remove Telnet from allowaccess
+    commands: &id001
+    - config system interface
+    - edit "{{interface}}"
+    - set allowaccess ping https ssh
+    - next
+    - end
+    order: 10
+    risk: Overwrites the interface allowaccess list; include every service you still need. Repeat for each affected interface.
+    params: &id002
+      interface:
+        pattern: '[A-Za-z][A-Za-z0-9/.:_-]{0,31}'
+        default: wan1
+  enable_ssh:
+    title: Allow SSH on the interface
+    commands: *id001
+    order: 10
+    risk: Overwrites the interface allowaccess list; include every service you still need. Repeat for each affected interface.
+    params: *id002
+  enforce_ssh_v2:
+    title: Enforce strong crypto
+    commands:
+    - config system global
+    - set strong-crypto enable
+    - end
+    order: 10
+    risk: FortiOS only supports SSH version 2; strong-crypto also disables weak ciphers and may break old clients.
+  disable_http_server:
+    title: Remove HTTP from allowaccess
+    commands: *id001
+    order: 20
+    risk: Overwrites the interface allowaccess list; include every service you still need. Repeat for each affected interface.
+    params: *id002
+  set_session_timeout:
+    title: Set a 10 minute admin timeout
+    commands:
+    - config system global
+    - set admintimeout 10
+    - end
+    order: 30
+  remove_default_snmp_community:
+    title: Delete the default SNMP community
+    commands:
+    - config system snmp community
+    - delete {{entry}}
+    - end
+    order: 20
+    risk: Check the entry id with 'show system snmp community' first. Prefer SNMPv3.
+    params:
+      entry:
+        pattern: '[0-9]{1,5}'
+        default: '1'
+  set_login_banner:
+    title: Enable the pre-login banner
+    commands:
+    - config system global
+    - set pre-login-banner enable
+    - end
+    - config system replacemsg admin "pre_admin-disclaimer-text"
+    - set buffer "Authorized access only. Activity is monitored and logged."
+    - end
+    order: 60
+  disable_icmp_redirects:
+    title: Disable ICMP redirects
+    commands:
+    - config system interface
+    - edit "{{interface}}"
+    - set icmp-redirect disable
+    - next
+    - end
+    order: 30
+    risk: Repeat for each affected interface.
+    params: *id002
+  restrict_mgmt_access:
+    title: Set trusted hosts for an admin
+    commands:
+    - config system admin
+    - edit "{{admin}}"
+    - set trusthost1 {{net}} {{mask}}
+    - next
+    - end
+    order: 30
+    risk: Set the management network correctly or this admin loses access. Repeat per admin. Placeholder addresses are from
+      documentation ranges; replace them with real values first.
+    params:
+      admin:
+        pattern: '[A-Za-z][A-Za-z0-9_-]{0,31}'
+        default: admin
+      net:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.0
+      mask:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 255.255.255.0
+  remove_permit_any_any:
+    title: Disable the any-to-any policy
+    commands:
+    - config firewall policy
+    - edit {{policy}}
+    - set status disable
+    - next
+    - end
+    order: 70
+    risk: Disabling can cut traffic; confirm a narrower policy exists first. Check ids with 'show firewall policy'.
+    params:
+      policy:
+        pattern: '[0-9]{1,5}'
+        default: '1'
+  enable_antispoofing:
+    title: Enable strict source check
+    commands:
+    - config system settings
+    - set strict-src-check enable
+    - end
+    order: 30
+    risk: Strict reverse-path checks can drop asymmetric traffic.

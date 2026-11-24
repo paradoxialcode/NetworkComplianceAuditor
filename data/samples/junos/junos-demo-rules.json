@@ -1,0 +1,96 @@
+{
+  "rules": [
+    {
+      "absent_value": false,
+      "capture_group": null,
+      "confidence": 0.9,
+      "explanation": "Demo rule for Junos set-format configs",
+      "expression": "set system services telnet",
+      "method": "prefix",
+      "rule_id": "junos-telnet",
+      "source": null,
+      "suggested_value": true,
+      "target_field": "telnet_enabled",
+      "vendor": "junos"
+    },
+    {
+      "absent_value": false,
+      "capture_group": null,
+      "confidence": 0.85,
+      "explanation": "Demo rule for Junos set-format configs",
+      "expression": "set system services web-management http",
+      "method": "prefix",
+      "rule_id": "junos-http",
+      "source": null,
+      "suggested_value": true,
+      "target_field": "http_management_enabled",
+      "vendor": "junos"
+    },
+    {
+      "absent_value": null,
+      "capture_group": 1,
+      "confidence": 0.9,
+      "explanation": "Demo rule for Junos set-format configs",
+      "expression": "set system host-name (\\S+)",
+      "method": "regex",
+      "rule_id": "junos-host",
+      "source": null,
+      "suggested_value": null,
+      "target_field": "hostname",
+      "vendor": "junos"
+    },
+    {
+      "absent_value": null,
+      "capture_group": 1,
+      "confidence": 0.9,
+      "explanation": "Demo rule for Junos set-format configs",
+      "expression": "set system ntp server (\\S+)",
+      "method": "regex",
+      "rule_id": "junos-ntp",
+      "source": null,
+      "suggested_value": null,
+      "target_field": "ntp_servers",
+      "vendor": "junos"
+    },
+    {
+      "absent_value": null,
+      "capture_group": 1,
+      "confidence": 0.9,
+      "explanation": "Demo rule for Junos set-format configs",
+      "expression": "set system syslog host (\\S+) .*",
+      "method": "regex",
+      "rule_id": "junos-syslog",
+      "source": null,
+      "suggested_value": null,
+      "target_field": "syslog_servers",
+      "vendor": "junos"
+    },
+    {
+      "absent_value": null,
+      "capture_group": 1,
+      "confidence": 0.9,
+      "explanation": "Demo rule for Junos set-format configs",
+      "expression": "set system login user (\\S+) class \\S+",
+      "method": "regex",
+      "rule_id": "junos-user",
+      "source": null,
+      "suggested_value": null,
+      "target_field": "local_users",
+      "vendor": "junos"
+    },
+    {
+      "absent_value": false,
+      "capture_group": null,
+      "confidence": 0.9,
+      "explanation": "Demo rule for Junos set-format configs",
+      "expression": "set system services ssh",
+      "method": "prefix",
+      "rule_id": "junos-ssh",
+      "source": null,
+      "suggested_value": true,
+      "target_field": "ssh_enabled",
+      "vendor": "junos"
+    }
+  ],
+  "version": 1
+}

@@ -12,6 +12,10 @@ checks:
     nist:
     - IA-2
     - AC-3
+    cis:
+    - '6.7'
+    iso27001:
+    - A.8.5
   remediation_key: enable_aaa
 - id: AUTH-002
   title: Central authentication server (TACACS+/RADIUS) is configured
@@ -25,6 +29,11 @@ checks:
     nist:
     - IA-2
     - AC-2
+    cis:
+    - '6.7'
+    iso27001:
+    - A.8.5
+    - A.5.15
   remediation_key: configure_remote_auth
 - id: AUTH-003
   title: Password encryption is enabled
@@ -37,6 +46,11 @@ checks:
   mappings:
     nist:
     - IA-5
+    cis:
+    - '4.1'
+    iso27001:
+    - A.5.17
+    - A.8.24
   remediation_key: enable_password_encryption
 - id: AUTH-004
   title: No plain-text passwords in configuration
@@ -49,6 +63,10 @@ checks:
   mappings:
     nist:
     - IA-5
+    cis:
+    - '4.1'
+    iso27001:
+    - A.5.17
   remediation_key: remove_plaintext_passwords
 - id: AUTH-005
   title: Login lockout after 5 or fewer failed attempts
@@ -61,6 +79,10 @@ checks:
   mappings:
     nist:
     - AC-7
+    cis:
+    - '4.1'
+    iso27001:
+    - A.8.5
   remediation_key: set_login_lockout
 - id: AUTH-006
   title: Privileged mode uses a secret (hashed) password
@@ -77,4 +99,8 @@ checks:
     nist:
     - IA-5
     - AC-6
+    cis:
+    - '5.4'
+    iso27001:
+    - A.8.2
   remediation_key: set_enable_secret

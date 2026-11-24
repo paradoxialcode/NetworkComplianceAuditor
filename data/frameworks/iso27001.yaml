@@ -1,0 +1,26 @@
+framework: iso27001
+name: ISO/IEC 27001 Annex A
+version: '2022'
+controls:
+- id: A.5.10
+  title: Acceptable use of information and other associated assets
+- id: A.5.15
+  title: Access control
+- id: A.5.17
+  title: Authentication information
+- id: A.8.2
+  title: Privileged access rights
+- id: A.8.5
+  title: Secure authentication
+- id: A.8.9
+  title: Configuration management
+- id: A.8.15
+  title: Logging
+- id: A.8.17
+  title: Clock synchronization
+- id: A.8.20
+  title: Networks security
+- id: A.8.22
+  title: Segregation of networks
+- id: A.8.24
+  title: Use of cryptography
