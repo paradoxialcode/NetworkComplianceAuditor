@@ -39,7 +39,7 @@ def _load_rules(data_dir: str) -> RuleSet:
 
 
 def training_rules_path() -> Path:
-    return get_settings().data_dir / TRAINING_RULES_FILE
+    return get_settings().training_rules_file
 
 
 def load_trained_rules() -> tuple[PatternRule, ...]:

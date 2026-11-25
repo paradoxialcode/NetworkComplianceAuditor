@@ -13,3 +13,4 @@ instance/
 sample_data/
 .coverage
 htmlcov/
+data/training_rules.json
