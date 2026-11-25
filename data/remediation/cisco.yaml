@@ -1,0 +1,213 @@
+vendor: cisco
+steps:
+  enable_aaa:
+    title: Enable AAA
+    commands:
+    - aaa new-model
+    - aaa authentication login default local
+    order: 10
+    risk: Create a local admin with 'username <USER> secret <PASSWORD>' before enabling, or you can lock yourself out.
+  configure_remote_auth:
+    title: Configure a TACACS+ server
+    commands:
+    - tacacs server TAC1
+    - address ipv4 {{server}}
+    - key <SHARED_SECRET>
+    - exit
+    - aaa authentication login default group tacacs+ local
+    order: 12
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat. Keep the local
+      fallback so a server outage does not lock you out.
+    params:
+      server:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.50
+  enable_password_encryption:
+    title: Enable password encryption
+    commands:
+    - service password-encryption
+    order: 20
+    risk: Type 7 encoding is reversible; prefer 'secret' for real protection.
+  remove_plaintext_passwords:
+    title: Replace clear-text passwords with hashed secrets
+    commands:
+    - service password-encryption
+    - enable secret <PASSWORD>
+    - no enable password
+    - username <USER> secret <PASSWORD>
+    - line vty 0 4
+    - no password
+    - login local
+    order: 20
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat. Verify local login
+      works from a second session before closing this one.
+  set_login_lockout:
+    title: Block logins after repeated failures
+    commands:
+    - login block-for 120 attempts 3 within 60
+    order: 30
+    risk: Can lock out legitimate admins; use 'login quiet-mode access-class' to exempt a management network.
+  set_enable_secret:
+    title: Set a hashed enable secret
+    commands:
+    - enable secret <PASSWORD>
+    - no enable password
+    order: 20
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat.
+  enable_logging:
+    title: Enable logging
+    commands:
+    - logging on
+    order: 40
+  configure_remote_syslog:
+    title: Send logs to a syslog server
+    commands:
+    - logging host {{syslog}}
+    - logging trap informational
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      syslog:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.20
+  enable_log_timestamps:
+    title: Timestamp log messages
+    commands:
+    - service timestamps log datetime msec localtime show-timezone
+    order: 40
+  configure_ntp:
+    title: Configure two NTP servers
+    commands:
+    - ntp server {{ntp1}}
+    - ntp server {{ntp2}}
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      ntp1:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.10
+      ntp2:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.11
+  set_log_level:
+    title: Log at informational level
+    commands:
+    - logging trap informational
+    order: 40
+  disable_telnet:
+    title: Allow only SSH on VTY lines
+    commands:
+    - line vty 0 4
+    - transport input ssh
+    order: 10
+    risk: Confirm SSH works first; this drops Telnet sessions on the next login.
+  enable_ssh:
+    title: Enable SSH
+    commands:
+    - ip domain name {{domain}}
+    - crypto key generate rsa modulus 3072
+    - ip ssh version 2
+    - line vty 0 4
+    - transport input ssh
+    - login local
+    order: 10
+    risk: Regenerating RSA keys replaces existing ones and clients will see a host key change.
+    params:
+      domain:
+        pattern: '[A-Za-z0-9][A-Za-z0-9.-]{0,62}'
+        default: example.local
+  enforce_ssh_v2:
+    title: Force SSH version 2
+    commands:
+    - ip ssh version 2
+    order: 10
+  disable_http_server:
+    title: Disable the HTTP server
+    commands:
+    - no ip http server
+    order: 20
+    risk: Web-based management stops working.
+  set_session_timeout:
+    title: Set a 10 minute idle timeout
+    commands:
+    - line vty 0 4
+    - exec-timeout 10 0
+    - line console 0
+    - exec-timeout 10 0
+    order: 30
+  remove_default_snmp_community:
+    title: Remove default SNMP communities
+    commands:
+    - no snmp-server community public
+    - no snmp-server community private
+    order: 20
+    risk: Monitoring systems that use these strings will stop polling. Use SNMPv3 instead.
+  set_login_banner:
+    title: Configure a login banner
+    commands:
+    - 'banner login #Authorized access only. Activity is monitored and logged.#'
+    order: 60
+  disable_source_routing:
+    title: Disable IP source routing
+    commands:
+    - no ip source-route
+    order: 30
+  disable_directed_broadcast:
+    title: Disable directed broadcast
+    commands:
+    - interface {{interface}}
+    - no ip directed-broadcast
+    order: 30
+    risk: Repeat for each affected interface.
+    params:
+      interface:
+        pattern: '[A-Za-z][A-Za-z0-9/.:_-]{0,31}'
+        default: GigabitEthernet0/0
+  disable_icmp_redirects:
+    title: Disable ICMP redirects
+    commands:
+    - interface {{interface}}
+    - no ip redirects
+    order: 30
+    risk: Repeat for each affected interface.
+    params:
+      interface:
+        pattern: '[A-Za-z][A-Za-z0-9/.:_-]{0,31}'
+        default: GigabitEthernet0/0
+  restrict_mgmt_access:
+    title: Restrict VTY access with an ACL
+    commands:
+    - ip access-list standard MGMT-ACCESS
+    - permit {{net}} {{wildcard}}
+    - deny any log
+    - exit
+    - line vty 0 4
+    - access-class MGMT-ACCESS in
+    order: 30
+    risk: Set the management network correctly or you will lose remote access. Placeholder addresses are from documentation
+      ranges; replace them with real values first.
+    params:
+      net:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.0
+      wildcard:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 0.0.0.255
+  remove_permit_any_any:
+    title: Replace permit any any rules
+    commands:
+    - show ip access-lists
+    order: 70
+    risk: 'Review output, then replace each ''permit ip any any'' entry with least-privilege rules. Not automated: removal
+      can break traffic.'
+  enable_antispoofing:
+    title: Enable unicast RPF
+    commands:
+    - interface {{interface}}
+    - ip verify unicast source reachable-via rx
+    order: 30
+    risk: Strict mode can drop asymmetric traffic. Repeat for each affected interface.
+    params:
+      interface:
+        pattern: '[A-Za-z][A-Za-z0-9/.:_-]{0,31}'
+        default: GigabitEthernet0/0

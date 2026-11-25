@@ -350,7 +350,8 @@ def test_text_suggestion_is_normalized_and_validated() -> None:
 
 def test_target_tables_are_consistent_with_the_baseline() -> None:
     baseline_fields = {f.name for f in dataclasses.fields(SecurityBaseline)}
-    assert set(TARGET_FIELD_TYPES) <= baseline_fields
+    assert set(TARGET_FIELD_TYPES) - pat._FACT_TARGETS <= baseline_fields
+    assert pat._FACT_TARGETS <= set(TARGET_FIELD_TYPES)
     assert set(TARGET_FIELD_TYPES.values()) == {str, bool}
     assert set(pat._FIELD_VENDORS) <= set(TARGET_FIELD_TYPES)
     for vendors in pat._FIELD_VENDORS.values():

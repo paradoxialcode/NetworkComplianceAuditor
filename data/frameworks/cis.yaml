@@ -1,0 +1,36 @@
+framework: cis
+name: CIS Critical Security Controls
+version: v8
+controls:
+- id: '3.10'
+  title: Encrypt Sensitive Data in Transit
+- id: '4.1'
+  title: Establish and Maintain a Secure Configuration Process
+- id: '4.2'
+  title: Establish and Maintain a Secure Configuration Process for Network Infrastructure
+- id: '4.3'
+  title: Configure Automatic Session Locking on Enterprise Assets
+- id: '4.7'
+  title: Manage Default Accounts on Enterprise Assets and Software
+- id: '4.8'
+  title: Uninstall or Disable Unnecessary Services on Enterprise Assets and Software
+- id: '5.4'
+  title: Restrict Administrator Privileges to Dedicated Administrator Accounts
+- id: '6.7'
+  title: Centralize Access Control
+- id: '6.8'
+  title: Define and Maintain Role-Based Access Control
+- id: '8.2'
+  title: Collect Audit Logs
+- id: '8.4'
+  title: Standardize Time Synchronization
+- id: '8.5'
+  title: Collect Detailed Audit Logs
+- id: '8.9'
+  title: Centralize Audit Logs
+- id: '12.2'
+  title: Establish and Maintain a Secure Network Architecture
+- id: '12.3'
+  title: Securely Manage Network Infrastructure
+- id: '12.6'
+  title: Use of Secure Network Management and Communication Protocols

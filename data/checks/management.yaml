@@ -13,6 +13,12 @@ checks:
     - AC-17
     - CM-7
     - SC-8
+    cis:
+    - '4.8'
+    - '12.6'
+    iso27001:
+    - A.8.20
+    - A.8.24
   remediation_key: disable_telnet
 - id: MGT-002
   title: SSH is enabled
@@ -26,6 +32,10 @@ checks:
     nist:
     - AC-17
     - SC-8
+    cis:
+    - '12.6'
+    iso27001:
+    - A.8.20
   remediation_key: enable_ssh
 - id: MGT-003
   title: SSH version 2 only
@@ -39,6 +49,10 @@ checks:
     nist:
     - SC-8
     - SC-13
+    cis:
+    - '12.6'
+    iso27001:
+    - A.8.24
   remediation_key: enforce_ssh_v2
 - id: MGT-004
   title: Plain HTTP management server is disabled
@@ -52,6 +66,11 @@ checks:
     nist:
     - CM-7
     - SC-8
+    cis:
+    - '4.8'
+    - '12.6'
+    iso27001:
+    - A.8.20
   remediation_key: disable_http_server
 - id: MGT-005
   title: Idle session timeout is 10 minutes or less
@@ -65,6 +84,10 @@ checks:
     nist:
     - AC-11
     - AC-12
+    cis:
+    - '4.3'
+    iso27001:
+    - A.8.5
   remediation_key: set_session_timeout
 - id: MGT-006
   title: Default SNMP community strings are not used
@@ -78,6 +101,10 @@ checks:
     nist:
     - IA-5
     - CM-6
+    cis:
+    - '4.7'
+    iso27001:
+    - A.5.17
   remediation_key: remove_default_snmp_community
 - id: MGT-007
   title: Login warning banner is configured
@@ -90,4 +117,8 @@ checks:
   mappings:
     nist:
     - AC-8
+    cis:
+    - '4.1'
+    iso27001:
+    - A.5.10
   remediation_key: set_login_banner

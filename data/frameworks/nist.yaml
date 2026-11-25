@@ -1,0 +1,52 @@
+framework: nist
+name: NIST SP 800-53
+version: Rev. 5
+controls:
+- id: AC-2
+  title: Account Management
+- id: AC-3
+  title: Access Enforcement
+- id: AC-4
+  title: Information Flow Enforcement
+- id: AC-6
+  title: Least Privilege
+- id: AC-7
+  title: Unsuccessful Logon Attempts
+- id: AC-8
+  title: System Use Notification
+- id: AC-11
+  title: Device Lock
+- id: AC-12
+  title: Session Termination
+- id: AC-17
+  title: Remote Access
+- id: AU-2
+  title: Event Logging
+- id: AU-3
+  title: Content of Audit Records
+- id: AU-6
+  title: Audit Record Review, Analysis, and Reporting
+- id: AU-8
+  title: Time Stamps
+- id: AU-9
+  title: Protection of Audit Information
+- id: AU-12
+  title: Audit Record Generation
+- id: CM-6
+  title: Configuration Settings
+- id: CM-7
+  title: Least Functionality
+- id: IA-2
+  title: Identification and Authentication (Organizational Users)
+- id: IA-5
+  title: Authenticator Management
+- id: SC-5
+  title: Denial-of-Service Protection
+- id: SC-7
+  title: Boundary Protection
+- id: SC-8
+  title: Transmission Confidentiality and Integrity
+- id: SC-13
+  title: Cryptographic Protection
+- id: SC-45
+  title: System Time Synchronization

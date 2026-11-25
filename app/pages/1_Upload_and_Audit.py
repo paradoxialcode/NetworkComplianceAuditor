@@ -1,7 +1,13 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 import streamlit as st
 
 from auditor.audit.batch import MAX_FILES_PER_BATCH, audit_batch
 from auditor.audit.pipeline import GENERIC_PARSER, TRAINED_PARSER
+from auditor.audit.restore import fetch_audits, format_audit_ids, parse_audit_ids
 from auditor.compliance.models import NONCOMPLIANT, Status
 from auditor.parsers.normalizer import Vendor
 from auditor.ui import common
@@ -20,6 +26,7 @@ VENDOR_CHOICES = {
     "Juniper Junos (trained rules)": Vendor.JUNOS,
     "Other vendor (generic parser)": GENERIC_PARSER,
 }
+QUERY_KEY = "audits"
 
 frameworks = st.multiselect(
     "Frameworks to assess",
@@ -51,6 +58,15 @@ if run and files:
                 max_bytes=settings.max_upload_bytes,
                 trained_rules=common.load_trained_rules(),
             )
+        saved = format_audit_ids(
+            item.audit.outcome.audit_id
+            for item in st.session_state["batch"]
+            if item.audit is not None and item.audit.outcome.audit_id is not None
+        )
+        if saved:
+            st.query_params[QUERY_KEY] = saved
+        elif QUERY_KEY in st.query_params:
+            del st.query_params[QUERY_KEY]
 
 items = st.session_state.get("batch")
 if items:
@@ -108,3 +124,32 @@ if items:
                     mime="application/pdf",
                     key=f"download-{index}-{outcome.audit_id}",
                 )
+else:
+    restore_ids = parse_audit_ids(st.query_params.get(QUERY_KEY))
+    if QUERY_KEY in st.query_params and not restore_ids:
+        st.warning("The audit link is not valid.")
+    elif restore_ids:
+        restored = fetch_audits(database, restore_ids)
+        if not restored:
+            st.warning("No saved audits were found for this link.")
+        else:
+            st.subheader("Saved results")
+            for stored, pdf in restored:
+                device = stored.device
+                with st.expander(f"{device.hostname} - audit #{stored.audit_id}", expanded=len(restored) == 1):
+                    st.caption(f"Vendor: {device.vendor} - saved {stored.created_at}")
+                    counts = stored.summary.by_status
+                    cols = st.columns(4)
+                    cols[0].metric("Checks", stored.summary.total)
+                    cols[1].metric("Non-compliant", sum(counts.get(s, 0) for s in NONCOMPLIANT))
+                    cols[2].metric("Could not determine", counts.get(Status.UNKNOWN, 0) + counts.get(Status.ERROR, 0))
+                    cols[3].metric("Passed", counts.get(Status.PASS, 0))
+                    st.dataframe(common.scores_frame(stored.scores), hide_index=True)
+                    if pdf:
+                        st.download_button(
+                            "Download PDF report",
+                            data=pdf,
+                            file_name=f"audit-{stored.audit_id}.pdf",
+                            mime="application/pdf",
+                            key=f"restored-download-{stored.audit_id}",
+                        )

@@ -12,6 +12,10 @@ checks:
     nist:
     - AU-2
     - AU-12
+    cis:
+    - '8.2'
+    iso27001:
+    - A.8.15
   remediation_key: enable_logging
 - id: LOG-002
   title: At least one remote syslog server
@@ -24,6 +28,10 @@ checks:
     nist:
     - AU-6
     - AU-9
+    cis:
+    - '8.9'
+    iso27001:
+    - A.8.15
   remediation_key: configure_remote_syslog
 - id: LOG-003
   title: Log timestamps are enabled
@@ -37,7 +45,14 @@ checks:
     nist:
     - AU-3
     - AU-8
+    cis:
+    - '8.5'
+    iso27001:
+    - A.8.15
   remediation_key: enable_log_timestamps
+  vendors:
+  - cisco
+  - juniper
 - id: LOG-004
   title: At least two NTP servers are configured
   severity: medium
@@ -50,6 +65,10 @@ checks:
     nist:
     - AU-8
     - SC-45
+    cis:
+    - '8.4'
+    iso27001:
+    - A.8.17
   remediation_key: configure_ntp
 - id: LOG-005
   title: Log level is informational (6) or more detailed
@@ -63,4 +82,8 @@ checks:
     nist:
     - AU-2
     - AU-12
+    cis:
+    - '8.5'
+    iso27001:
+    - A.8.15
   remediation_key: set_log_level

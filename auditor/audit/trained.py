@@ -24,7 +24,13 @@ MAPPING_PREFIX: Final = "trained:"
 
 _SET_PREFIXED: Final = frozenset({Vendor.JUNOS})
 _IDENTITY: Final = {Vendor.JUNOS: (schema.Vendor.Juniper, "Junos (trained rules)")}
-_BOOL_FIELDS: Final = ("telnet_enabled", "http_management_enabled", "password_encryption")
+_BOOL_FIELDS: Final = (
+    "telnet_enabled",
+    "http_management_enabled",
+    "ssh_enabled",
+    "https_enabled",
+    "password_encryption",
+)
 _LIST_FIELDS: Final = ("ntp_servers", "syslog_servers", "local_users")
 _FALLBACK_HOSTNAME: Final = "unknown-device"
 _LINE_REF: Final = re.compile(r"line (\d+)")
@@ -224,6 +230,10 @@ def build_trained_baseline(
         updates["telnet"] = states["telnet_enabled"]
     if "http_management_enabled" in states:
         updates["http"] = states["http_management_enabled"]
+    if "ssh_enabled" in states:
+        updates["ssh"] = states["ssh_enabled"]
+    if "https_enabled" in states:
+        updates["https"] = states["https_enabled"]
     if updates:
         management = management.model_copy(update=updates)
 

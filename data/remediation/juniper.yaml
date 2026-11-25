@@ -1,0 +1,189 @@
+vendor: juniper
+steps:
+  enable_aaa:
+    title: Authenticate against RADIUS then local
+    commands:
+    - set system radius-server {{server}} secret <SHARED_SECRET>
+    - set system authentication-order [ radius password ]
+    order: 12
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat. Keep 'password'
+      in the order as fallback.
+    params:
+      server:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.50
+  configure_remote_auth:
+    title: Add a RADIUS server
+    commands:
+    - set system radius-server {{server}} secret <SHARED_SECRET>
+    - set system authentication-order [ radius password ]
+    order: 12
+    risk: Replace every <PLACEHOLDER> value before applying. Never paste real secrets into tickets or chat. Keep 'password'
+      in the order as fallback.
+    params:
+      server:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.50
+  enable_password_encryption:
+    title: Use SHA-512 password hashing
+    commands:
+    - set system login password format sha512
+    order: 20
+    risk: Applies to new passwords only.
+  remove_plaintext_passwords:
+    title: Re-enter the root password so it is hashed
+    commands:
+    - set system root-authentication plain-text-password
+    order: 20
+    risk: The CLI prompts for the password and stores only the hash.
+  set_login_lockout:
+    title: Disconnect after repeated failures
+    commands:
+    - set system login retry-options tries-before-disconnect 3
+    - set system login retry-options lockout-period 5
+    order: 30
+    risk: Can lock out legitimate admins.
+  set_enable_secret:
+    title: Set a hashed root password
+    commands:
+    - set system root-authentication plain-text-password
+    order: 20
+    risk: The CLI prompts for the password and stores only the hash.
+  enable_logging:
+    title: Log to a local file
+    commands:
+    - set system syslog file messages any notice
+    order: 40
+  configure_remote_syslog:
+    title: Send logs to a syslog server
+    commands:
+    - set system syslog host {{syslog}} any info
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      syslog:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.20
+  enable_log_timestamps:
+    title: Use millisecond timestamps
+    commands:
+    - set system syslog time-format millisecond
+    order: 40
+  configure_ntp:
+    title: Configure two NTP servers
+    commands:
+    - set system ntp server {{ntp1}}
+    - set system ntp server {{ntp2}}
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      ntp1:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.10
+      ntp2:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.11
+  set_log_level:
+    title: Log at info level
+    commands:
+    - set system syslog host {{syslog}} any info
+    order: 40
+    risk: Placeholder addresses are from documentation ranges; replace them with real values first.
+    params:
+      syslog:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}'
+        default: 192.0.2.20
+  disable_telnet:
+    title: Remove the Telnet service
+    commands:
+    - delete system services telnet
+    order: 10
+    risk: Confirm SSH works first.
+  enable_ssh:
+    title: Enable SSH version 2
+    commands:
+    - set system services ssh protocol-version v2
+    order: 10
+  enforce_ssh_v2:
+    title: Force SSH version 2
+    commands:
+    - set system services ssh protocol-version v2
+    order: 10
+  disable_http_server:
+    title: Remove the HTTP service
+    commands:
+    - delete system services web-management http
+    order: 20
+    risk: J-Web over HTTP stops working.
+  set_session_timeout:
+    title: Set a 10 minute idle timeout
+    commands:
+    - set system login class {{cls}} idle-timeout 10
+    order: 30
+    risk: Assign the class to users with 'set system login user <USER> class {{cls}}'.
+    params:
+      cls:
+        pattern: '[A-Za-z][A-Za-z0-9_-]{0,31}'
+        default: MGMT
+  remove_default_snmp_community:
+    title: Delete the default SNMP communities
+    commands:
+    - delete snmp community public
+    - delete snmp community private
+    order: 20
+    risk: Monitoring systems that use these strings will stop polling. Use SNMPv3 instead.
+  set_login_banner:
+    title: Configure a login message
+    commands:
+    - set system login message "Authorized access only. Activity is monitored and logged."
+    order: 60
+  disable_source_routing:
+    title: Ignore source-routed packets
+    commands:
+    - set system internet-options no-source-route
+    order: 30
+  disable_directed_broadcast:
+    title: Disable directed broadcast
+    commands:
+    - set interfaces {{interface}} unit 0 family inet no-directed-broadcast
+    order: 30
+    risk: Repeat for each affected interface.
+    params:
+      interface:
+        pattern: '[A-Za-z][A-Za-z0-9/.:_-]{0,31}'
+        default: ge-0/0/0
+  disable_icmp_redirects:
+    title: Disable ICMP redirects
+    commands:
+    - set system no-redirects
+    order: 30
+  restrict_mgmt_access:
+    title: Filter management traffic on lo0
+    commands:
+    - set firewall family inet filter MGMT-ACCESS term allow from source-address {{net}}
+    - set firewall family inet filter MGMT-ACCESS term allow then accept
+    - set firewall family inet filter MGMT-ACCESS term deny then discard
+    - set interfaces lo0 unit 0 family inet filter input MGMT-ACCESS
+    order: 30
+    risk: Allow routing protocols you rely on (BGP, OSPF, NTP) in the filter before applying, or you will lose them. Placeholder
+      addresses are from documentation ranges; replace them with real values first.
+    params:
+      net:
+        pattern: '[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}'
+        default: 192.0.2.0/24
+  remove_permit_any_any:
+    title: Replace permit-all filter terms
+    commands:
+    - show configuration firewall
+    order: 70
+    risk: 'Review output, then replace terms that accept everything. Not automated: removal can break traffic.'
+  enable_antispoofing:
+    title: Enable unicast RPF
+    commands:
+    - set interfaces {{interface}} unit 0 family inet rpf-check
+    order: 30
+    risk: Strict mode can drop asymmetric traffic. Repeat for each affected interface.
+    params:
+      interface:
+        pattern: '[A-Za-z][A-Za-z0-9/.:_-]{0,31}'
+        default: ge-0/0/0

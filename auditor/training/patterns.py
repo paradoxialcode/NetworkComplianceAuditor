@@ -129,6 +129,8 @@ TARGET_FIELD_TYPES: Mapping[str, type] = MappingProxyType(
         "local_users": str,
         "telnet_enabled": bool,
         "http_management_enabled": bool,
+        "ssh_enabled": bool,
+        "https_enabled": bool,
         "password_encryption": bool,
     }
 )
@@ -139,11 +141,15 @@ _FIELD_VENDORS: Mapping[str, frozenset[Vendor]] = MappingProxyType(
 )
 
 
+# Targets stored as named facts rather than dedicated SecurityBaseline fields.
+_FACT_TARGETS: frozenset[str] = frozenset({"ssh_enabled", "https_enabled"})
+
+
 def _verify_targets(baseline_fields: Iterable[str]) -> None:
     """Fail loudly if a target field no longer exists on SecurityBaseline."""
 
     known = set(baseline_fields)
-    missing = sorted(set(TARGET_FIELD_TYPES) - known)
+    missing = sorted(set(TARGET_FIELD_TYPES) - known - _FACT_TARGETS)
     if missing:
         raise RuntimeError(
             "TARGET_FIELD_TYPES refers to fields missing from SecurityBaseline: "

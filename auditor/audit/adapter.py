@@ -56,6 +56,46 @@ def _evidence(evidence: parsed.Evidence, vendor: parsed.Vendor) -> schema.Eviden
     )
 
 
+_PROMOTED: Final = frozenset(
+    {"ssh_enabled", "https_enabled", "aaa_enabled", "logging_enabled", "os_version"}
+)
+
+
+def _named(result: parsed.SecurityBaseline, key: str) -> parsed.NamedFact | None:
+    return next((fact for fact in result.facts if fact.key == key), None)
+
+
+def _named_state(result: parsed.SecurityBaseline, key: str) -> schema.SecurityState | None:
+    fact = _named(result, key)
+    if fact is None or not isinstance(fact.value, bool):
+        return None
+    return _State.ENABLED if fact.value else _State.DISABLED
+
+
+def _named_facts(result: parsed.SecurityBaseline) -> list[schema.SecurityFact]:
+    facts: list[schema.SecurityFact] = []
+    for named in result.facts:
+        if named.key in _PROMOTED:
+            continue
+        facts.append(
+            schema.SecurityFact(
+                key=named.key,
+                value=named.value,
+                state=_named_state(result, named.key),
+                evidence=_evidence(named.evidence, result.vendor) if named.evidence else None,
+            )
+        )
+    if result.ntp_servers:
+        facts.append(
+            schema.SecurityFact(
+                key="ntp_server_count",
+                value=len(result.ntp_servers),
+                evidence=_evidence(result.ntp_servers[0].evidence, result.vendor),
+            )
+        )
+    return facts
+
+
 def _facts(result: parsed.SecurityBaseline) -> list[schema.SecurityFact]:
     facts: list[schema.SecurityFact] = []
     for key, fact in (
@@ -81,6 +121,7 @@ def _facts(result: parsed.SecurityBaseline) -> list[schema.SecurityFact]:
                 evidence=_evidence(result.local_users[0].evidence, result.vendor),
             )
         )
+    facts.extend(_named_facts(result))
     return facts
 
 
@@ -98,6 +139,10 @@ def to_schema_baseline(
     hostname = result.hostname.value[:_MAX_NAME_LEN] if result.hostname else None
     ntp = [server.value for server in result.ntp_servers]
     syslog = [server.value for server in result.syslog_servers]
+    logging_state = _named_state(result, "logging_enabled")
+    if syslog:
+        logging_state = _State.ENABLED
+    version = _named(result, "os_version")
 
     return schema.SecurityBaseline(
         device=schema.DeviceMetadata(
@@ -106,16 +151,20 @@ def to_schema_baseline(
             platform=_PLATFORMS.get(result.vendor, "Unknown"),
             sha256=sha256,
             filename=source,
+            version=_clip(str(version.value), _MAX_NAME_LEN) if version else None,
         ),
         management=schema.ManagementAccess(
-            ssh=_State.UNKNOWN,
+            ssh=_named_state(result, "ssh_enabled") or _State.UNKNOWN,
             telnet=_state(result.telnet_enabled),
             http=_state(result.http_management_enabled),
-            https=_State.UNKNOWN,
+            https=_named_state(result, "https_enabled") or _State.UNKNOWN,
         ),
-        auth=schema.AuthenticationSettings(local=_State.ENABLED if result.local_users else None),
+        auth=schema.AuthenticationSettings(
+            local=_State.ENABLED if result.local_users else None,
+            aaa=_named_state(result, "aaa_enabled"),
+        ),
         logging=schema.LoggingSettings(
-            enabled=_State.ENABLED if syslog else _State.UNKNOWN,
+            enabled=logging_state or _State.UNKNOWN,
             destinations=syslog,
         ),
         time_sync=schema.TimeSync(
