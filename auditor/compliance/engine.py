@@ -14,6 +14,7 @@ _SENSITIVE: Final = re.compile(r"passw|secret|psk|key|communit|token|credential|
 _MAX_EVIDENCE_LEN: Final = 200
 _MAX_EVIDENCE_ITEMS: Final = 20
 UNKNOWN_STATE: Final = "UNKNOWN"
+SCALAR_ITEM_FIELD: Final = "value"
 _ON_MISSING: Final = {
     "pass": Status.PASS,
     "fail": Status.FAIL,
@@ -79,6 +80,16 @@ def _any(statuses: set[Status]) -> Status:
     return Status.FAIL
 
 
+def _none(statuses: set[Status]) -> Status:
+    if Status.PASS in statuses:
+        return Status.FAIL
+    if Status.ERROR in statuses:
+        return Status.ERROR
+    if Status.UNKNOWN in statuses:
+        return Status.UNKNOWN
+    return Status.PASS
+
+
 def _eval_leaf(field: str, op: str, cond: Condition, data: Mapping[str, Any]) -> tuple[Status, Evidence]:
     actual = resolve(data, field)
     evidence = {field: _evidence_value(field, actual)}
@@ -93,7 +104,31 @@ def _eval_leaf(field: str, op: str, cond: Condition, data: Mapping[str, Any]) ->
     return (Status.PASS if matched else Status.FAIL), evidence
 
 
+def _eval_match(field: str, cond: Condition, data: Mapping[str, Any]) -> tuple[Status, Evidence]:
+    actual = resolve(data, field)
+    if actual is MISSING:
+        return _ON_MISSING[cond.on_missing], {field: _evidence_value(field, actual)}
+    if isinstance(actual, str) and actual == UNKNOWN_STATE:
+        return Status.UNKNOWN, {field: UNKNOWN_STATE}
+    if not isinstance(actual, (list, tuple)):
+        return Status.ERROR, {field: f"<{type(actual).__name__}>"}
+    sub = cond.any_match if cond.any_match is not None else cond.none_match
+    if sub is None:
+        return Status.ERROR, {field: "<invalid condition>"}
+    statuses = [
+        _eval(sub, item if isinstance(item, Mapping) else {SCALAR_ITEM_FIELD: item})[0] for item in actual
+    ]
+    evidence: Evidence = {
+        f"{field}.count": len(statuses),
+        f"{field}.matched": sum(1 for s in statuses if s is Status.PASS),
+    }
+    combine = _any if cond.any_match is not None else _none
+    return combine(set(statuses)), evidence
+
+
 def _eval(cond: Condition, data: Mapping[str, Any]) -> tuple[Status, Evidence]:
+    if cond.field is not None and (cond.any_match is not None or cond.none_match is not None):
+        return _eval_match(cond.field, cond, data)
     if cond.field is not None and cond.op is not None:
         return _eval_leaf(cond.field, cond.op, cond, data)
     children = cond.all_of if cond.all_of is not None else cond.any_of

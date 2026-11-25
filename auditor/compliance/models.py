@@ -38,17 +38,28 @@ class Condition(BaseModel):
     on_missing: Literal["pass", "fail", "not_configured"] = "fail"
     all_of: list[Condition] | None = None
     any_of: list[Condition] | None = None
+    any_match: Condition | None = None
+    none_match: Condition | None = None
 
     @model_validator(mode="after")
     def _validate_shape(self) -> Condition:
-        leaf = self.field is not None or self.op is not None
+        matchers = [m for m in (self.any_match, self.none_match) if m is not None]
         groups = [g for g in (self.all_of, self.any_of) if g is not None]
+        leaf = self.field is not None or self.op is not None or bool(matchers)
         if int(leaf) + len(groups) != 1:
-            raise ValueError("condition must be exactly one of: field+op, all_of, any_of")
+            raise ValueError(
+                "condition must be exactly one of: field+op, field+any_match, field+none_match, all_of, any_of"
+            )
         if leaf:
-            if self.field is None or self.op is None:
+            forms = int(self.op is not None) + len(matchers)
+            if self.field is None or forms == 0:
                 raise ValueError("field and op must be given together")
-            validate_operand(self.op, self.value)
+            if forms != 1:
+                raise ValueError("use exactly one of op, any_match, none_match")
+            if self.op is not None:
+                validate_operand(self.op, self.value)
+            elif self.value is not None:
+                raise ValueError("value is not allowed with any_match or none_match")
         elif not groups[0]:
             raise ValueError("all_of/any_of must not be empty")
         return self
