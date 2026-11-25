@@ -6,6 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import pandas as pd
 import streamlit as st
 
+from auditor.compliance.catalog import mapping_completeness
 from auditor.ui import common
 
 st.set_page_config(page_title="Rules and Frameworks", layout="wide")
@@ -37,11 +38,15 @@ with checks_tab:
     )
 
 with frameworks_tab:
-    mapped: dict[str, set[str]] = {fw: set() for fw in rules.catalogs}
-    for check in rules.checks:
-        for fw, ids in check.mappings.items():
-            if fw in mapped:
-                mapped[fw].update(i.casefold() for i in ids)
+    all_checks = "All checks"
+    vendors = sorted({v for c in rules.checks for v in (c.vendors or ())})
+    scope = st.selectbox(
+        "Vendor scope",
+        [all_checks, *vendors],
+        key="mapping-scope",
+        help="Count only checks that apply to this vendor. Checks without a vendor list apply to every vendor.",
+    )
+    report = mapping_completeness(rules.checks, rules.catalogs, None if scope == all_checks else scope)
     st.dataframe(
         pd.DataFrame(
             [
@@ -49,14 +54,21 @@ with frameworks_tab:
                     "Framework": common.framework_label(fw),
                     "Catalog": catalog.name,
                     "Version": catalog.version or "-",
-                    "Controls": len(catalog.controls),
-                    "Controls with a mapped check": sum(1 for c in catalog.controls if c.id.casefold() in mapped[fw]),
+                    "Controls": item.total,
+                    "Controls with a mapped check": item.mapped,
+                    "Mapped %": item.pct,
                 }
                 for fw, catalog in rules.catalogs.items()
+                for item in (report[fw],)
             ]
         ),
         hide_index=True,
     )
+    st.caption("Mapped % is rule-set coverage of the catalog. It is not a device compliance score.")
+    for fw, item in report.items():
+        if item.unmapped:
+            with st.expander(f"{common.framework_label(fw)}: {len(item.unmapped)} controls without a mapped check"):
+                st.text(", ".join(item.unmapped))
 
 with remediation_tab:
     if rules.templates:

@@ -64,9 +64,9 @@ class UploadAudit:
 
 
 def default_detector(text: str) -> parsed.Vendor | None:
-    from auditor.ingestion.detector import detect_vendor
+    from auditor.ingestion.junos_detector import detect_vendor_with_junos
 
-    return detect_vendor(text).vendor
+    return detect_vendor_with_junos(text)
 
 
 def default_backends() -> Backends:
@@ -133,6 +133,7 @@ def parse_config_upload(
         return _parse_generic(upload)
 
     active = backends or default_backends()
+    auto_detected = vendor is None
     chosen = vendor or (active.detect or default_detector)(upload.text)
     if chosen is None:
         return _parse_generic(upload)
@@ -144,6 +145,8 @@ def parse_config_upload(
         usable = [rule for rule in trained_rules or () if isinstance(rule, PatternRule) and rule.vendor is chosen]
         if usable:
             return _parse_trained(upload, chosen, usable)
+        if auto_detected and chosen is parsed.Vendor.JUNOS:
+            return _parse_generic(upload)
         raise UnsupportedVendorError(_NO_PARSER_MESSAGE)
 
     try:

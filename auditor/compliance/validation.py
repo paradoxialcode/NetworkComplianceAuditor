@@ -3,12 +3,13 @@ from collections.abc import Iterable, Iterator
 from enum import Enum
 from typing import Any, Union, get_args, get_origin
 
-from pydantic import BaseModel
+from pydantic import BaseModel, create_model
 
 from .models import Check, Condition
 
 _ENUM_OPS = frozenset({"eq", "ne", "in", "not_in"})
 _NUMERIC_OPS = frozenset({"gt", "gte", "lt", "lte"})
+_SCALAR_ITEM_FIELD = "value"
 
 
 def _unwrap(tp: Any) -> Any:
@@ -58,8 +59,38 @@ def _leaves(cond: Condition) -> Iterator[Condition]:
         yield from _leaves(child)
 
 
+def _match_errors(cond: Condition, model: type[BaseModel]) -> Iterator[str]:
+    if cond.field is None:
+        return
+    list_type, error = _resolve_type(model, cond.field)
+    if error:
+        yield f"{cond.field}: {error}"
+        return
+    if list_type is Any:
+        return
+    if get_origin(list_type) is not list:
+        yield f"{cond.field}: any_match/none_match requires a list field ({list_type})"
+        return
+    args = get_args(list_type)
+    item = _unwrap(args[0]) if args else Any
+    if item is Any:
+        return
+    item_model = item if _is_model(item) else create_model("_ScalarItem", **{_SCALAR_ITEM_FIELD: (item, ...)})
+    sub = cond.any_match if cond.any_match is not None else cond.none_match
+    if sub is None:
+        return
+    for leaf in _leaves(sub):
+        for message in _leaf_errors(leaf, item_model):
+            yield f"{cond.field}[]: {message}"
+
+
 def _leaf_errors(cond: Condition, model: type[BaseModel]) -> Iterator[str]:
-    if cond.field is None or cond.op is None:
+    if cond.field is None:
+        return
+    if cond.any_match is not None or cond.none_match is not None:
+        yield from _match_errors(cond, model)
+        return
+    if cond.op is None:
         return
     leaf_type, error = _resolve_type(model, cond.field)
     if error:

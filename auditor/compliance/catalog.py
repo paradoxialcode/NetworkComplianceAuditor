@@ -48,6 +48,16 @@ class Catalog(BaseModel):
         return self
 
 
+class MappingCompleteness(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    framework: str
+    total: int
+    mapped: int
+    pct: float
+    unmapped: tuple[str, ...]
+
+
 def load_catalogs(directory: Path) -> dict[str, Catalog]:
     files = sorted(p for p in chain(directory.glob("*.yaml"), directory.glob("*.yml")) if p.is_file())
     catalogs: dict[str, Catalog] = {}
@@ -78,3 +88,26 @@ def unknown_mappings(checks: Iterable[Check], catalogs: dict[str, Catalog]) -> l
                 if cid.strip().casefold() not in known[framework]
             )
     return problems
+
+
+def mapping_completeness(
+    checks: Iterable[Check],
+    catalogs: dict[str, Catalog],
+    vendor: str | None = None,
+) -> dict[str, MappingCompleteness]:
+    wanted = vendor.strip().lower() if vendor else None
+    selected = [c for c in checks if wanted is None or c.vendors is None or wanted in c.vendors]
+    report: dict[str, MappingCompleteness] = {}
+    for framework, catalog in catalogs.items():
+        mapped_ids = {cid.strip().casefold() for c in selected for cid in c.mappings.get(framework, ())}
+        unmapped = tuple(ctl.id for ctl in catalog.controls if ctl.id.casefold() not in mapped_ids)
+        total = len(catalog.controls)
+        mapped = total - len(unmapped)
+        report[framework] = MappingCompleteness(
+            framework=framework,
+            total=total,
+            mapped=mapped,
+            pct=round(100 * mapped / total, 1),
+            unmapped=unmapped,
+        )
+    return report

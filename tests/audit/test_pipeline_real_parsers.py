@@ -98,4 +98,4 @@ end
 def test_default_detector_recognizes_realistic_configs():
     assert default_detector(REALISTIC_CISCO) is ParserVendor.CISCO_IOS
     assert default_detector(REALISTIC_FORTI) is ParserVendor.FORTIOS
-    assert default_detector("set system host-name junos-1\nset system services ssh\n") is None
+    assert default_detector("set system host-name junos-1\nset system services ssh\n") is ParserVendor.JUNOS
