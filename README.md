@@ -91,3 +91,16 @@ pip-audit --require-hashes --disable-pip --no-deps -r requirements.lock
 - No authentication or multi-user isolation. Run locally or behind an authenticating reverse proxy.
 - Audit IDs in the URL (`?audits=`) grant read access to stored audits for anyone who can reach the app.
 - Jinja2 remediation templates run sandboxed; user regexes are timeout- and probe-checked.
+
+## Authors
+
+- Maitrey Suthar
+- Omkar Jaiswal
+- Aditya Vishwakarma
+- Ashish Yadav
+
+Built as a B.Tech Cyber Security and Digital Forensics project.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
